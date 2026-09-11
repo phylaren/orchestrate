@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class SwapRequestServiceImpl implements SwapRequestService {
@@ -35,7 +36,7 @@ public class SwapRequestServiceImpl implements SwapRequestService {
     }
 
     @Override
-    public List<SwapRequestResponse> getSwapRequests(Long choreId) {
+    public List<SwapRequestResponse> getSwapRequests(UUID choreId) {
         return repository.findByChoreId(choreId)
                 .stream()
                 .map(this::toResponse)
@@ -43,9 +44,9 @@ public class SwapRequestServiceImpl implements SwapRequestService {
     }
 
     @Override
-    public SwapRequestResponse createSwapRequest(Long choreId, SwapRequestRequest request) {
-        Long initiatorId = currentUserProvider.getMembershipId();
-        Long receiverId = request.receiverMembershipId();
+    public SwapRequestResponse createSwapRequest(UUID choreId, SwapRequestRequest request) {
+        UUID initiatorId = currentUserProvider.getUserId();
+        UUID receiverId = request.receiverUserId();
 
         if (initiatorId.equals(receiverId)) {
             throw new InvalidSwapRequestRecipientException(receiverId, choreId);
@@ -57,11 +58,11 @@ public class SwapRequestServiceImpl implements SwapRequestService {
 
         // TODO (chore-module integration): verify that both initiator and receiver
         //  are ChoreParticipants of this chore. Requires a public port from the chore
-        //  module (e.g. isParticipant(choreId, membershipId) exposed in package `chore`,
+        //  module (e.g. isParticipant(choreId, userId) exposed in package `chore`,
         //  not `chore.internal`). Once available, call before saving and reject with a
         //  validation error (400) if either side is not a participant. This also covers
-        //  two edge cases: (1) choreId that does not exist, and (2) membershipId that
-        //  does not exist — both naturally return false from isParticipant.
+        //  two edge cases: (1) choreId that does not exist, and (2) userId that does
+        //  not exist — both naturally return false from isParticipant.
         //  BLOCKER: depends on the chore module's public contract.
 
         SwapRequest saved = repository.save(new SwapRequest(
@@ -77,10 +78,10 @@ public class SwapRequestServiceImpl implements SwapRequestService {
     }
 
     @Override
-    public SwapRequestResponse respondToSwapRequest(Long choreId,
-                                                    Long requestId,
+    public SwapRequestResponse respondToSwapRequest(UUID choreId,
+                                                    UUID requestId,
                                                     SwapRequestStatusRequest request) {
-        Long currentMembershipId = currentUserProvider.getMembershipId();
+        UUID currentUserId = currentUserProvider.getUserId();
 
         SwapRequest existing = repository.findById(requestId)
                 .orElseThrow(() -> new SwapRequestNotFoundException(requestId));
@@ -89,13 +90,13 @@ public class SwapRequestServiceImpl implements SwapRequestService {
             throw new SwapRequestNotFoundException(requestId);
         }
 
-        if (!existing.receiverMembershipId().equals(currentMembershipId)) {
-            throw new NotSwapRequestReceiverException(currentMembershipId, requestId);
+        if (!existing.receiverUserId().equals(currentUserId)) {
+            throw new NotSwapRequestReceiverException(currentUserId, requestId);
         }
 
         if (existing.status() != SwapRequestStatus.PENDING) {
             throw new InvalidSwapRequestStatusException(
-                    "SwapRequest id=%d is already %s".formatted(requestId, existing.status()));
+                    "SwapRequest id=%s is already %s".formatted(requestId, existing.status()));
         }
 
         if (request.status() == SwapRequestStatus.PENDING) {
@@ -106,8 +107,8 @@ public class SwapRequestServiceImpl implements SwapRequestService {
         SwapRequest updated = repository.update(new SwapRequest(
                 existing.id(),
                 existing.choreId(),
-                existing.initiatorMembershipId(),
-                existing.receiverMembershipId(),
+                existing.initiatorUserId(),
+                existing.receiverUserId(),
                 request.status(),
                 existing.createdAt()
         ));
@@ -119,8 +120,8 @@ public class SwapRequestServiceImpl implements SwapRequestService {
             // relevant when processed, the chore module discards it.
             eventPublisher.publishEvent(new SwapRequestAcceptedEvent(
                     updated.choreId(),
-                    updated.initiatorMembershipId(),
-                    updated.receiverMembershipId()
+                    updated.initiatorUserId(),
+                    updated.receiverUserId()
             ));
         }
 
@@ -131,8 +132,8 @@ public class SwapRequestServiceImpl implements SwapRequestService {
         return new SwapRequestResponse(
                 s.id(),
                 s.choreId(),
-                s.initiatorMembershipId(),
-                s.receiverMembershipId(),
+                s.initiatorUserId(),
+                s.receiverUserId(),
                 s.status(),
                 s.createdAt()
         );

@@ -1,5 +1,7 @@
 package genius.project.orchestrate.identity;
 
+import java.util.UUID;
+
 public interface CurrentUserProvider {
-    Long getMembershipId();
+    UUID getUserId();
 }

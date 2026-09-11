@@ -1,13 +1,15 @@
 package genius.project.orchestrate.swap.dto;
 
 import genius.project.orchestrate.swap.SwapRequestStatus;
+
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 public record SwapRequestResponse(
-        Long id,
-        Long choreId,
-        Long initiatorMembershipId,
-        Long receiverMembershipId,
+        UUID id,
+        UUID choreId,
+        UUID initiatorUserId,
+        UUID receiverUserId,
         SwapRequestStatus status,
         LocalDateTime createdAt
 ) {}

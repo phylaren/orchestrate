@@ -1,7 +1,9 @@
 package genius.project.orchestrate.swap;
 
+import java.util.UUID;
+
 public record SwapRequestAcceptedEvent(
-        Long choreId,
-        Long initiatorMembershipId,
-        Long receiverMembershipId
+        UUID choreId,
+        UUID initiatorUserId,
+        UUID receiverUserId
 ) {}

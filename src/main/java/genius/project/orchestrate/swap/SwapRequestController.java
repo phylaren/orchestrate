@@ -10,6 +10,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/chores/{choreId}/swap-requests")
@@ -26,13 +27,13 @@ public class SwapRequestController {
     //  household module to resolve household membership by choreId.
     @GetMapping
     public ResponseEntity<List<SwapRequestResponse>> getSwapRequests(
-            @PathVariable Long choreId) {
+            @PathVariable UUID choreId) {
         return ResponseEntity.ok(swapRequestService.getSwapRequests(choreId));
     }
 
     @PostMapping
     public ResponseEntity<SwapRequestResponse> createSwapRequest(
-            @PathVariable Long choreId,
+            @PathVariable UUID choreId,
             @Valid @RequestBody SwapRequestRequest request) {
         SwapRequestResponse created = swapRequestService.createSwapRequest(choreId, request);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
@@ -44,8 +45,8 @@ public class SwapRequestController {
 
     @PatchMapping("/{requestId}")
     public ResponseEntity<SwapRequestResponse> respondToSwapRequest(
-            @PathVariable Long choreId,
-            @PathVariable Long requestId,
+            @PathVariable UUID choreId,
+            @PathVariable UUID requestId,
             @Valid @RequestBody SwapRequestStatusRequest request) {
         return ResponseEntity.ok(swapRequestService.respondToSwapRequest(choreId, requestId, request));
     }
