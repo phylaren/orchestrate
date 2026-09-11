@@ -94,6 +94,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<ProblemDetail> handleValidation(ValidationException ex, HttpServletRequest request) {
+        ProblemDetail body = baseProblem(HttpStatus.BAD_REQUEST, "Validation failed", ex.getMessage(), request);
+        body.setProperty("code", ex.getErrorCode());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ProblemDetail> handleForbidden(ForbiddenException ex, HttpServletRequest request) {
+        ProblemDetail body = baseProblem(HttpStatus.FORBIDDEN, "Forbidden", ex.getMessage(), request);
+        body.setProperty("code", ex.getErrorCode());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
     private ProblemDetail baseProblem(HttpStatus status, String title, String detail, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setTitle(title);
