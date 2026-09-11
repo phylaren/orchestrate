@@ -4,6 +4,7 @@ import genius.project.orchestrate.identity.CurrentUserProvider;
 import genius.project.orchestrate.swap.DuplicateSwapRequestException;
 import genius.project.orchestrate.swap.InvalidSwapRequestRecipientException;
 import genius.project.orchestrate.swap.InvalidSwapRequestStatusException;
+import genius.project.orchestrate.swap.NotSwapRequestReceiverException;
 import genius.project.orchestrate.swap.SwapRequestAcceptedEvent;
 import genius.project.orchestrate.swap.SwapRequestNotFoundException;
 import genius.project.orchestrate.swap.SwapRequestService;
@@ -54,8 +55,14 @@ public class SwapRequestServiceImpl implements SwapRequestService {
             throw new DuplicateSwapRequestException(choreId, initiatorId, receiverId);
         }
 
-        // TODO: validate that both initiator and receiver are ChoreParticipants of this chore
-        // pending chore module integration
+        // TODO (chore-module integration): verify that both initiator and receiver
+        //  are ChoreParticipants of this chore. Requires a public port from the chore
+        //  module (e.g. isParticipant(choreId, membershipId) exposed in package `chore`,
+        //  not `chore.internal`). Once available, call before saving and reject with a
+        //  validation error (400) if either side is not a participant. This also covers
+        //  two edge cases: (1) choreId that does not exist, and (2) membershipId that
+        //  does not exist — both naturally return false from isParticipant.
+        //  BLOCKER: depends on the chore module's public contract.
 
         SwapRequest saved = repository.save(new SwapRequest(
                 null,
@@ -83,7 +90,7 @@ public class SwapRequestServiceImpl implements SwapRequestService {
         }
 
         if (!existing.receiverMembershipId().equals(currentMembershipId)) {
-            throw new InvalidSwapRequestRecipientException(currentMembershipId, choreId);
+            throw new NotSwapRequestReceiverException(currentMembershipId, requestId);
         }
 
         if (existing.status() != SwapRequestStatus.PENDING) {
@@ -106,6 +113,10 @@ public class SwapRequestServiceImpl implements SwapRequestService {
         ));
 
         if (updated.status() == SwapRequestStatus.ACCEPTED) {
+            // Rotation algorithm belongs to the chore module. Swap does not know how
+            // the exchange is applied (current cycle, ahead of time, how many cycles)
+            // and deliberately does not validate relevance. If the event is no longer
+            // relevant when processed, the chore module discards it.
             eventPublisher.publishEvent(new SwapRequestAcceptedEvent(
                     updated.choreId(),
                     updated.initiatorMembershipId(),

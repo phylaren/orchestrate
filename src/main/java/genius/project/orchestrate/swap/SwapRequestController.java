@@ -21,6 +21,9 @@ public class SwapRequestController {
         this.swapRequestService = swapRequestService;
     }
 
+    // TODO: add access check — current user must belong to the household that owns
+    //  this chore. Pending the authorization layer and a public port from the
+    //  household module to resolve household membership by choreId.
     @GetMapping
     public ResponseEntity<List<SwapRequestResponse>> getSwapRequests(
             @PathVariable Long choreId) {
