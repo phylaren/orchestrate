@@ -1,9 +1,11 @@
 package genius.project.orchestrate.swap.internal;
 
+import genius.project.orchestrate.chore.client.ChoreClient;
 import genius.project.orchestrate.identity.CurrentUserProvider;
 import genius.project.orchestrate.swap.DuplicateSwapRequestException;
 import genius.project.orchestrate.swap.InvalidSwapRequestRecipientException;
 import genius.project.orchestrate.swap.InvalidSwapRequestStatusException;
+import genius.project.orchestrate.swap.NotChoreParticipantException;
 import genius.project.orchestrate.swap.NotSwapRequestReceiverException;
 import genius.project.orchestrate.swap.SwapRequestAcceptedEvent;
 import genius.project.orchestrate.swap.SwapRequestNotFoundException;
@@ -25,13 +27,16 @@ public class SwapRequestServiceImpl implements SwapRequestService {
 
     private final SwapRequestRepository repository;
     private final CurrentUserProvider currentUserProvider;
+    private final ChoreClient choreClient;
     private final ApplicationEventPublisher eventPublisher;
 
     public SwapRequestServiceImpl(SwapRequestRepository repository,
                                   CurrentUserProvider currentUserProvider,
+                                  ChoreClient choreClient,
                                   ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
         this.currentUserProvider = currentUserProvider;
+        this.choreClient = choreClient;
         this.eventPublisher = eventPublisher;
     }
 
@@ -52,18 +57,17 @@ public class SwapRequestServiceImpl implements SwapRequestService {
             throw new InvalidSwapRequestRecipientException(receiverId, choreId);
         }
 
+        if (!choreClient.isParticipant(choreId, initiatorId)) {
+            throw new NotChoreParticipantException(initiatorId, choreId);
+        }
+
+        if (!choreClient.isParticipant(choreId, receiverId)) {
+            throw new NotChoreParticipantException(receiverId, choreId);
+        }
+
         if (repository.existsPending(choreId, initiatorId, receiverId)) {
             throw new DuplicateSwapRequestException(choreId, initiatorId, receiverId);
         }
-
-        // TODO (chore-module integration): verify that both initiator and receiver
-        //  are ChoreParticipants of this chore. Requires a public port from the chore
-        //  module (e.g. isParticipant(choreId, userId) exposed in package `chore`,
-        //  not `chore.internal`). Once available, call before saving and reject with a
-        //  validation error (400) if either side is not a participant. This also covers
-        //  two edge cases: (1) choreId that does not exist, and (2) userId that does
-        //  not exist — both naturally return false from isParticipant.
-        //  BLOCKER: depends on the chore module's public contract.
 
         SwapRequest saved = repository.save(new SwapRequest(
                 null,
