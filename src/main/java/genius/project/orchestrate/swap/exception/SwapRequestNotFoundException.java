@@ -1,4 +1,4 @@
-package genius.project.orchestrate.swap;
+package genius.project.orchestrate.swap.exception;
 
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 
