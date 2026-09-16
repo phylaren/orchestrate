@@ -1,5 +1,6 @@
 package genius.project.orchestrate.swap.internal;
 
+import genius.project.orchestrate.chore.TurnSwapRequestedEvent;
 import genius.project.orchestrate.chore.client.ChoreClient;
 import genius.project.orchestrate.identity.CurrentUserProvider;
 import genius.project.orchestrate.swap.exception.DuplicateSwapRequestException;
@@ -7,7 +8,6 @@ import genius.project.orchestrate.swap.exception.InvalidSwapRequestRecipientExce
 import genius.project.orchestrate.swap.exception.InvalidSwapRequestStatusException;
 import genius.project.orchestrate.swap.exception.NotChoreParticipantException;
 import genius.project.orchestrate.swap.exception.NotSwapRequestReceiverException;
-import genius.project.orchestrate.swap.SwapRequestAcceptedEvent;
 import genius.project.orchestrate.swap.exception.SwapRequestNotFoundException;
 import genius.project.orchestrate.swap.SwapRequestService;
 import genius.project.orchestrate.swap.SwapRequestStatus;
@@ -118,11 +118,7 @@ public class SwapRequestServiceImpl implements SwapRequestService {
         ));
 
         if (updated.status() == SwapRequestStatus.ACCEPTED) {
-            // Rotation algorithm belongs to the chore module. Swap does not know how
-            // the exchange is applied (current cycle, ahead of time, how many cycles)
-            // and deliberately does not validate relevance. If the event is no longer
-            // relevant when processed, the chore module discards it.
-            eventPublisher.publishEvent(new SwapRequestAcceptedEvent(
+            eventPublisher.publishEvent(new TurnSwapRequestedEvent(
                     updated.choreId(),
                     updated.initiatorUserId(),
                     updated.receiverUserId()
