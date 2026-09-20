@@ -228,7 +228,7 @@ Content-Type: application/problem+json
 
 | Що | Де |
 |---|---|
-| `ConfirmationStatus` і `canTransitionTo` | `chore/internal/domain/ConfirmationStatus.java` |
+| `ConfirmationStatus` і `canTransitionTo` | `chore/ConfirmationStatus.java` |
 | Guard для `ConfirmationStatus` | `chore/internal/ChoreServiceImpl.java` → `decideConfirmation` |
 | Виняток `InvalidConfirmationStatusException` | `chore/exception/InvalidConfirmationStatusException.java` |
 | `SwapRequestStatus` і `canTransitionTo` | `swap/SwapRequestStatus.java` |
@@ -267,7 +267,7 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 
 | Тест | Що перевіряє |
 |---|---|
-| `chore/internal/domain/ConfirmationStatusTest` | Усі 16 пар `ConfirmationStatus × ConfirmationStatus` збігаються з матрицею вище; матриця охоплює всі значення enum'а; перехід у `null` заборонений |
+| `chore/ConfirmationStatusTest` | Усі 16 пар `ConfirmationStatus × ConfirmationStatus` збігаються з матрицею вище; матриця охоплює всі значення enum'а; перехід у `null` заборонений |
 | `swap/SwapRequestStatusTest` | Те саме для 9 пар `SwapRequestStatus × SwapRequestStatus` |
 | `chore/internal/ChoreServiceImplTest` → `DecideConfirmation` | Guard у сервісі: `CONFIRMED`, `REJECTED`, `NOT_REQUIRED` не можна розглянути повторно; після відмови нічого не зберігається і ротація не рухається |
 | `swap/internal/SwapRequestServiceImplTest` → `RespondToSwapRequest` | Guard у сервісі: з кінцевих станів і з `PENDING` у `PENDING` — виняток; подія не публікується |
