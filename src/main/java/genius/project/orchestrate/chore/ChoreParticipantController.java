@@ -2,7 +2,6 @@ package genius.project.orchestrate.chore;
 
 import genius.project.orchestrate.chore.dto.ParticipantJoinRequest;
 import genius.project.orchestrate.chore.dto.ParticipantResponse;
-import genius.project.orchestrate.chore.internal.domain.ChoreParticipant;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -22,34 +21,32 @@ import java.util.UUID;
 @RequestMapping("/api/v1/chores/{choreId}/participants")
 public class ChoreParticipantController {
 
-    private final ChoreService choreService;
+    private final ChoreParticipantService choreParticipantService;
 
-    public ChoreParticipantController(ChoreService choreService) {
-        this.choreService = choreService;
+    public ChoreParticipantController(ChoreParticipantService choreParticipantService) {
+        this.choreParticipantService = choreParticipantService;
     }
 
     @PostMapping
     public ResponseEntity<ParticipantResponse> join(@PathVariable UUID choreId,
-                                                       @Valid @RequestBody ParticipantJoinRequest request,
-                                                       UriComponentsBuilder uriBuilder) {
-        ChoreParticipant participant = choreService.joinChore(choreId, request.userId(), false);
+                                                    @Valid @RequestBody ParticipantJoinRequest request,
+                                                    UriComponentsBuilder uriBuilder) {
+        ParticipantResponse participant = choreParticipantService.joinChore(choreId, request.userId(), false);
         URI location = uriBuilder
                 .path("/api/v1/chores/{choreId}/participants/{userId}")
                 .buildAndExpand(choreId, participant.userId())
                 .toUri();
-        return ResponseEntity.created(location).body(ParticipantResponse.from(participant));
+        return ResponseEntity.created(location).body(participant);
     }
 
     @GetMapping
     public List<ParticipantResponse> list(@PathVariable UUID choreId) {
-        return choreService.listParticipants(choreId).stream()
-                .map(ParticipantResponse::from)
-                .toList();
+        return choreParticipantService.listParticipants(choreId);
     }
 
     @DeleteMapping("/{userId}")
     public ResponseEntity<Void> leave(@PathVariable UUID choreId, @PathVariable UUID userId) {
-        choreService.leaveChore(choreId, userId);
+        choreParticipantService.leaveChore(choreId, userId);
         return ResponseEntity.noContent().build();
     }
 }
