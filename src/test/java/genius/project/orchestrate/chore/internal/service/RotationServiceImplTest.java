@@ -3,6 +3,7 @@ package genius.project.orchestrate.chore.internal.service;
 import genius.project.orchestrate.chore.dto.RotationScheduleResponse;
 import genius.project.orchestrate.chore.internal.domain.RotationSchedule;
 import genius.project.orchestrate.chore.internal.repository.RotationRepository;
+import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -288,6 +290,18 @@ class RotationServiceImplTest {
             assertThat(saved.baseOrder()).isEmpty();
             assertThat(saved.currentResponsible()).isNull();
         }
+
+        @Test
+        @DisplayName("no schedule: throws ResourceNotFoundException")
+        void noSchedule_Throws() {
+            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.removeParticipant(CHORE_ID, USER_A))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .extracting("errorCode").isEqualTo("ROTATIONSCHEDULE_NOT_FOUND");
+
+            verify(rotationRepository, org.mockito.Mockito.never()).save(any());
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -340,6 +354,18 @@ class RotationServiceImplTest {
             service.advance(CHORE_ID);
 
             ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
+            verify(rotationRepository, org.mockito.Mockito.never()).save(any());
+        }
+
+        @Test
+        @DisplayName("no schedule: throws ResourceNotFoundException")
+        void noSchedule_Throws() {
+            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.advance(CHORE_ID))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .extracting("errorCode").isEqualTo("ROTATIONSCHEDULE_NOT_FOUND");
+
             verify(rotationRepository, org.mockito.Mockito.never()).save(any());
         }
     }

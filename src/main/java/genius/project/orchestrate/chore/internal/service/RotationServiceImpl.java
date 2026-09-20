@@ -4,6 +4,7 @@ import genius.project.orchestrate.chore.RotationService;
 import genius.project.orchestrate.chore.dto.RotationScheduleResponse;
 import genius.project.orchestrate.chore.internal.domain.RotationSchedule;
 import genius.project.orchestrate.chore.internal.repository.RotationRepository;
+import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -63,7 +64,7 @@ class RotationServiceImpl implements RotationService {
     @Override
     public RotationScheduleResponse removeParticipant(UUID choreId, UUID userId) {
         RotationSchedule current = rotationRepository.findByChoreId(choreId)
-                .orElseThrow(() -> new IllegalStateException("RotationSchedule not found for chore: " + choreId));
+                .orElseThrow(() -> ResourceNotFoundException.of("rotationSchedule", choreId));
 
         List<UUID> newOrder = new ArrayList<>(current.baseOrder());
         int removedIndex = newOrder.indexOf(userId);
@@ -97,7 +98,7 @@ class RotationServiceImpl implements RotationService {
     @Override
     public RotationScheduleResponse advance(UUID choreId) {
         RotationSchedule current = rotationRepository.findByChoreId(choreId)
-                .orElseThrow(() -> new IllegalStateException("RotationSchedule not found for chore: " + choreId));
+                .orElseThrow(() -> ResourceNotFoundException.of("rotationSchedule", choreId));
 
         if (current.isEmpty()) {
             return RotationScheduleResponse.from(current);
@@ -114,7 +115,7 @@ class RotationServiceImpl implements RotationService {
     @Override
     public RotationScheduleResponse swapPositions(UUID choreId, UUID userA, UUID userB) {
         RotationSchedule current = rotationRepository.findByChoreId(choreId)
-                .orElseThrow(() -> new IllegalStateException("RotationSchedule not found for chore: " + choreId));
+                .orElseThrow(() -> ResourceNotFoundException.of("rotationSchedule", choreId));
 
         List<UUID> newOrder = new ArrayList<>(current.baseOrder());
         int indexA = newOrder.indexOf(userA);
