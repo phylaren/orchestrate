@@ -3,7 +3,6 @@ package genius.project.orchestrate.chore;
 import genius.project.orchestrate.chore.dto.CompletionCreateRequest;
 import genius.project.orchestrate.chore.dto.ConfirmationDecisionRequest;
 import genius.project.orchestrate.chore.internal.domain.ChoreCompletion;
-import genius.project.orchestrate.chore.internal.domain.ConfirmationStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

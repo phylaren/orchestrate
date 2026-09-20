@@ -1,11 +1,12 @@
 package genius.project.orchestrate.chore.internal;
 
 import genius.project.orchestrate.chore.ChoreService;
+import genius.project.orchestrate.chore.exception.InvalidConfirmationStatusException;
 import genius.project.orchestrate.chore.internal.domain.Chore;
 import genius.project.orchestrate.chore.internal.domain.ChoreAssignment;
 import genius.project.orchestrate.chore.internal.domain.ChoreCompletion;
 import genius.project.orchestrate.chore.internal.domain.ChoreParticipant;
-import genius.project.orchestrate.chore.internal.domain.ConfirmationStatus;
+import genius.project.orchestrate.chore.ConfirmationStatus;
 import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
@@ -156,10 +157,10 @@ public class ChoreServiceImpl implements ChoreService {
                 .filter(c -> c.choreId().equals(choreId))
                 .orElseThrow(() -> ResourceNotFoundException.of("completion", completionId));
 
-        if (completion.status() != ConfirmationStatus.PENDING) {
-            throw new BusinessRuleViolationException(
-                    "COMPLETION_ALREADY_RESOLVED",
-                    "This completion has already been resolved with status '%s'.".formatted(completion.status()));
+        ConfirmationStatus currentStatus = completion.status();
+        ConfirmationStatus targetStatus = approved ? ConfirmationStatus.CONFIRMED : ConfirmationStatus.REJECTED;
+        if (!currentStatus.canTransitionTo(targetStatus)) {
+            throw new InvalidConfirmationStatusException(completionId, currentStatus, targetStatus);
         }
         if (completion.completedByUserId().equals(confirmedByUserId)) {
             throw new BusinessRuleViolationException(
@@ -172,7 +173,7 @@ public class ChoreServiceImpl implements ChoreService {
                 completion.choreId(),
                 completion.completedByUserId(),
                 completion.completedAt(),
-                approved ? ConfirmationStatus.CONFIRMED : ConfirmationStatus.REJECTED,
+                targetStatus,
                 confirmedByUserId,
                 Instant.now()));
 

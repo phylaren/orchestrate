@@ -1,5 +1,7 @@
 package genius.project.orchestrate.chore.internal.domain;
 
+import genius.project.orchestrate.chore.ConfirmationStatus;
+
 import java.time.Instant;
 import java.util.UUID;
 

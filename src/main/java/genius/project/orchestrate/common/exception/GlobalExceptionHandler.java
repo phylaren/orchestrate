@@ -39,6 +39,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
+    @ExceptionHandler(InvalidStateTransitionException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidStateTransition(InvalidStateTransitionException ex, HttpServletRequest request) {
+        ProblemDetail body = baseProblem(HttpStatus.UNPROCESSABLE_CONTENT, "Invalid state transition", ex.getMessage(), request);
+        body.setProperty("code", ex.getErrorCode());
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(body);
+    }
+
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ProblemDetail> handleConstraintViolation(ConstraintViolationException ex, HttpServletRequest request) {
         List<Map<String, String>> errors = ex.getConstraintViolations().stream()
