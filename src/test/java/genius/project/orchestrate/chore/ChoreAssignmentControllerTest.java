@@ -1,6 +1,6 @@
 package genius.project.orchestrate.chore;
 
-import genius.project.orchestrate.chore.internal.domain.ChoreAssignment;
+import genius.project.orchestrate.chore.dto.AssignmentResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +23,7 @@ class ChoreAssignmentControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private ChoreService choreService;
+    private ChoreParticipantService choreParticipantService;
 
     private static final UUID CHORE_ID = UUID.randomUUID();
     private static final UUID USER_ID = UUID.randomUUID();
@@ -31,9 +31,8 @@ class ChoreAssignmentControllerTest {
     @Test
     @DisplayName("GET .../assignment повертає поточне призначення, якщо воно активне")
     void getCurrentAssignment_WhenActive_ReturnsAssignment() throws Exception {
-        ChoreAssignment assignment = new ChoreAssignment(CHORE_ID, USER_ID, 3, Instant.now());
-
-        when(choreService.getCurrentAssignment(CHORE_ID)).thenReturn(Optional.of(assignment));
+        AssignmentResponse response = new AssignmentResponse(CHORE_ID, USER_ID, 3, Instant.now());
+        when(choreParticipantService.getCurrentAssignment(CHORE_ID)).thenReturn(Optional.of(response));
 
         mockMvc.perform(get("/api/v1/chores/{choreId}/assignment", CHORE_ID))
                 .andExpect(status().isOk())
@@ -45,7 +44,7 @@ class ChoreAssignmentControllerTest {
     @Test
     @DisplayName("GET .../assignment повертає 404, якщо ротаційна група порожня")
     void getCurrentAssignment_WhenEmpty_ReturnsNotFound() throws Exception {
-        when(choreService.getCurrentAssignment(CHORE_ID)).thenReturn(Optional.empty());
+        when(choreParticipantService.getCurrentAssignment(CHORE_ID)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/v1/chores/{choreId}/assignment", CHORE_ID))
                 .andExpect(status().isNotFound());

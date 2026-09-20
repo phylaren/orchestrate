@@ -1,7 +1,7 @@
 package genius.project.orchestrate.chore;
 
 import genius.project.orchestrate.chore.dto.ParticipantJoinRequest;
-import genius.project.orchestrate.chore.internal.domain.ChoreParticipant;
+import genius.project.orchestrate.chore.dto.ParticipantResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,20 +32,21 @@ class ChoreParticipantControllerTest {
     private JsonMapper jsonMapper;
 
     @MockitoBean
-    private ChoreService choreService;
+    private ChoreParticipantService choreParticipantService;
 
     private static final UUID CHORE_ID = UUID.randomUUID();
     private static final UUID USER_ID = UUID.randomUUID();
+
+    private static ParticipantResponse participantResponse(boolean addedByAdmin) {
+        return new ParticipantResponse(CHORE_ID, USER_ID, addedByAdmin, Instant.now());
+    }
 
     @Test
     @DisplayName("POST .../participants додає учасника і повертає 201 Created")
     void join_ReturnsCreated() throws Exception {
         ParticipantJoinRequest request = new ParticipantJoinRequest(USER_ID);
-
-        ChoreParticipant participant = new ChoreParticipant(CHORE_ID, USER_ID, Instant.now(), false);
-
-        // контролер завжди викликає joinChore(choreId, userId, false)
-        when(choreService.joinChore(CHORE_ID, USER_ID, false)).thenReturn(participant);
+        when(choreParticipantService.joinChore(CHORE_ID, USER_ID, false))
+                .thenReturn(participantResponse(false));
 
         mockMvc.perform(post("/api/v1/chores/{choreId}/participants", CHORE_ID)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -56,26 +57,25 @@ class ChoreParticipantControllerTest {
                 .andExpect(jsonPath("$.userId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.addedByAdmin").value(false));
 
-        verify(choreService).joinChore(CHORE_ID, USER_ID, false);
+        verify(choreParticipantService).joinChore(CHORE_ID, USER_ID, false);
     }
 
     @Test
     @DisplayName("POST .../participants без userId повертає 400 Bad Request")
     void join_WithMissingUserId_ReturnsBadRequest() throws Exception {
-        ParticipantJoinRequest invalidRequest = new ParticipantJoinRequest(null);
+        ParticipantJoinRequest request = new ParticipantJoinRequest(null);
 
         mockMvc.perform(post("/api/v1/chores/{choreId}/participants", CHORE_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonMapper.writeValueAsString(invalidRequest)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     @DisplayName("GET .../participants повертає список учасників")
     void list_ReturnsParticipants() throws Exception {
-        ChoreParticipant participant = new ChoreParticipant(CHORE_ID, USER_ID, Instant.now(), true);
-
-        when(choreService.listParticipants(CHORE_ID)).thenReturn(List.of(participant));
+        when(choreParticipantService.listParticipants(CHORE_ID))
+                .thenReturn(List.of(participantResponse(true)));
 
         mockMvc.perform(get("/api/v1/chores/{choreId}/participants", CHORE_ID))
                 .andExpect(status().isOk())
@@ -89,6 +89,6 @@ class ChoreParticipantControllerTest {
         mockMvc.perform(delete("/api/v1/chores/{choreId}/participants/{userId}", CHORE_ID, USER_ID))
                 .andExpect(status().isNoContent());
 
-        verify(choreService).leaveChore(CHORE_ID, USER_ID);
+        verify(choreParticipantService).leaveChore(CHORE_ID, USER_ID);
     }
 }
