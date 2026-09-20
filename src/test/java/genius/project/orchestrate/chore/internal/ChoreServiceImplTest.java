@@ -5,6 +5,7 @@ import genius.project.orchestrate.chore.internal.domain.ChoreAssignment;
 import genius.project.orchestrate.chore.internal.domain.ChoreCompletion;
 import genius.project.orchestrate.chore.internal.domain.ChoreParticipant;
 import genius.project.orchestrate.chore.ConfirmationStatus;
+import genius.project.orchestrate.chore.exception.InvalidConfirmationStatusException;
 import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +13,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -429,17 +432,42 @@ class ChoreServiceImplTest {
                     .extracting("errorCode").isEqualTo("SELF_CONFIRMATION_NOT_ALLOWED");
         }
 
+        @ParameterizedTest(name = "{0} + approved={1} -> InvalidConfirmationStatusException")
+        @CsvSource({
+                "NOT_REQUIRED, true",
+                "NOT_REQUIRED, false",
+                "CONFIRMED,    true",
+                "CONFIRMED,    false",
+                "REJECTED,     true",
+                "REJECTED,     false"
+        })
+        @DisplayName("non-PENDING completion throws InvalidConfirmationStatusException, nothing is saved")
+        void nonPending_ThrowsInvalidConfirmationStatus(ConfirmationStatus current, boolean approved) {
+            ChoreCompletion resolved = completion(USER_A, current);
+
+            when(repository.findChoreById(CHORE_ID)).thenReturn(Optional.of(chore));
+            when(repository.findCompletionById(resolved.id())).thenReturn(Optional.of(resolved));
+
+            assertThatThrownBy(() -> service.decideConfirmation(CHORE_ID, resolved.id(), USER_B, approved))
+                    .isInstanceOf(InvalidConfirmationStatusException.class)
+                    .extracting("errorCode").isEqualTo("INVALID_CONFIRMATION_STATUS");
+
+            verify(repository, never()).saveCompletion(any());
+            verify(repository, never()).saveAssignment(any());
+        }
+
         @Test
-        @DisplayName("already resolved completion throws BusinessRuleViolationException")
-        void alreadyResolved_ThrowsBusinessRuleViolation() {
+        @DisplayName("transition guard runs before the self-confirmation check")
+        void guardRunsBeforeSelfConfirmationCheck() {
             ChoreCompletion confirmed = completion(USER_A, ConfirmationStatus.CONFIRMED);
 
             when(repository.findChoreById(CHORE_ID)).thenReturn(Optional.of(chore));
             when(repository.findCompletionById(confirmed.id())).thenReturn(Optional.of(confirmed));
 
-            assertThatThrownBy(() -> service.decideConfirmation(CHORE_ID, confirmed.id(), USER_B, true))
-                    .isInstanceOf(BusinessRuleViolationException.class)
-                    .extracting("errorCode").isEqualTo("COMPLETION_ALREADY_RESOLVED");
+            assertThatThrownBy(() -> service.decideConfirmation(CHORE_ID, confirmed.id(), USER_A, true))
+                    .isInstanceOf(InvalidConfirmationStatusException.class);
+
+            verify(repository, never()).saveCompletion(any());
         }
 
         @Test

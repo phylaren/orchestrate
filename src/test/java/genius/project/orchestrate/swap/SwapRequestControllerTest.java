@@ -221,33 +221,37 @@ class SwapRequestControllerTest {
     }
 
     @Test
-    void should_return400_when_requestAlreadyResolved() throws Exception {
+    void should_return422_when_requestAlreadyResolved() throws Exception {
         when(swapRequestService.respondToSwapRequest(eq(CHORE_ID), eq(REQUEST_ID), any()))
                 .thenThrow(new InvalidSwapRequestStatusException(
-                        "SwapRequest id=%s is already ACCEPTED".formatted(REQUEST_ID)));
+                        REQUEST_ID, SwapRequestStatus.ACCEPTED, SwapRequestStatus.REJECTED));
 
         mockMvc.perform(patch("/api/v1/chores/{choreId}/swap-requests/{id}", CHORE_ID, REQUEST_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"status":"REJECTED"}
                                 """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.code").value("INVALID_SWAP_REQUEST_STATUS"));
+                .andExpect(status().is(422))
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.code").value("INVALID_SWAP_REQUEST_STATUS"))
+                .andExpect(jsonPath("$.detail").value(
+                        "Illegal state transition for swap request '%s' from ACCEPTED to REJECTED"
+                                .formatted(REQUEST_ID)));
     }
 
     @Test
-    void should_return400_when_statusSetBackToPending() throws Exception {
+    void should_return422_when_statusSetBackToPending() throws Exception {
         when(swapRequestService.respondToSwapRequest(eq(CHORE_ID), eq(REQUEST_ID), any()))
-                .thenThrow(new InvalidSwapRequestStatusException("Cannot set status back to PENDING"));
+                .thenThrow(new InvalidSwapRequestStatusException(
+                        REQUEST_ID, SwapRequestStatus.PENDING, SwapRequestStatus.PENDING));
 
         mockMvc.perform(patch("/api/v1/chores/{choreId}/swap-requests/{id}", CHORE_ID, REQUEST_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"status":"PENDING"}
                                 """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(status().is(422))
+                .andExpect(jsonPath("$.status").value(422))
                 .andExpect(jsonPath("$.code").value("INVALID_SWAP_REQUEST_STATUS"));
     }
 

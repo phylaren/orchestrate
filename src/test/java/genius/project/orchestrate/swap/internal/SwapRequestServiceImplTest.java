@@ -282,6 +282,7 @@ class SwapRequestServiceImplTest {
                     .extracting("errorCode").isEqualTo("INVALID_SWAP_REQUEST_STATUS");
 
             verify(repository, never()).update(any());
+            verify(eventPublisher, never()).publishEvent(any());
         }
 
         @Test
@@ -297,6 +298,7 @@ class SwapRequestServiceImplTest {
                     .extracting("errorCode").isEqualTo("INVALID_SWAP_REQUEST_STATUS");
 
             verify(repository, never()).update(any());
+            verify(eventPublisher, never()).publishEvent(any());
         }
     }
 

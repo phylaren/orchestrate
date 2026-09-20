@@ -2,6 +2,7 @@ package genius.project.orchestrate.chore;
 
 import genius.project.orchestrate.chore.dto.CompletionCreateRequest;
 import genius.project.orchestrate.chore.dto.ConfirmationDecisionRequest;
+import genius.project.orchestrate.chore.exception.InvalidConfirmationStatusException;
 import genius.project.orchestrate.chore.internal.domain.ChoreCompletion;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -125,6 +126,27 @@ class ChoreCompletionControllerTest {
                 .andExpect(jsonPath("$.confirmedByUserId").value(CONFIRMER_ID.toString()));
 
         verify(choreService).decideConfirmation(CHORE_ID, COMPLETION_ID, CONFIRMER_ID, true);
+    }
+
+    @Test
+    @DisplayName("POST .../confirmation для вже розглянутого запису повертає 422 Unprocessable Content")
+    void decideConfirmation_WhenTransitionIllegal_ReturnsUnprocessableContent() throws Exception {
+        ConfirmationDecisionRequest request = new ConfirmationDecisionRequest(CONFIRMER_ID, false);
+
+        when(choreService.decideConfirmation(CHORE_ID, COMPLETION_ID, CONFIRMER_ID, false))
+                .thenThrow(new InvalidConfirmationStatusException(
+                        COMPLETION_ID, ConfirmationStatus.CONFIRMED, ConfirmationStatus.REJECTED));
+
+        mockMvc.perform(post("/api/v1/chores/{choreId}/completions/{completionId}/confirmation",
+                        CHORE_ID, COMPLETION_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonMapper.writeValueAsString(request)))
+                .andExpect(status().is(422))
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.code").value("INVALID_CONFIRMATION_STATUS"))
+                .andExpect(jsonPath("$.detail").value(
+                        "Illegal state transition for completion '%s' from CONFIRMED to REJECTED"
+                                .formatted(COMPLETION_ID)));
     }
 
     @Test
