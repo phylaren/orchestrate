@@ -14,6 +14,7 @@
 - [Загальний підхід](#загальний-підхід)
 - [1. ConfirmationStatus](#1-confirmationstatus--підтвердження-виконання)
 - [2. SwapRequestStatus](#2-swaprequeststatus--запит-на-обмін-чергою)
+- [3. Household і User — домогосподарства, членство, права](#3-household-і-user--домогосподарства-членство-права)
 - [Обробка помилок](#обробка-помилок)
 - [Де що лежить у коді](#де-що-лежить-у-коді)
 - [Тести](#тести)
@@ -165,6 +166,68 @@ stateDiagram-v2
 
 ---
 
+## 3. Household і User — домогосподарства, членство, права
+
+Модуль `user` зберігає профілі користувачів. Модуль `household` відповідає за домогосподарства, членство
+(`Membership`), права учасників (`MembershipPermission`) і коди запрошення (`InvitationCode`).
+`household` залежить від `user` лише через `UserClient` (`user/client`), а `user` про `household` не знає,
+тому циклу між модулями немає. Той, хто виконує дію, визначається через `CurrentUserProvider`, як і в модулі `swap`.
+
+Один `User` може бути учасником багатьох `Household`: кожне членство — окремий запис `Membership`
+(`householdId`, `userId`, `permissions`, `joinedAt`).
+
+### API
+
+| Метод | Шлях | Хто може | Що робить |
+|---|---|---|---|
+| POST | `/api/v1/users` | будь-хто | Реєстрація користувача (`displayName`, `email`) → 201 |
+| GET | `/api/v1/users`, `/api/v1/users/{userId}` | будь-хто | Список / один користувач |
+| GET | `/api/v1/users/{userId}/households` | будь-хто | Усі доми користувача з ознакою `owner` і правами |
+| POST | `/api/v1/households` | зареєстрований користувач | Створити дім (`name`); творець стає власником → 201 |
+| GET | `/api/v1/households/{householdId}` | учасник | Дім з `ownerId` |
+| DELETE | `/api/v1/households/{householdId}` | власник | Видалити дім разом із членствами й кодом → 204 |
+| POST | `/api/v1/households/{householdId}/ownership-transfer` | власник | Передати власність (`newOwnerUserId`) |
+| GET | `/api/v1/households/{householdId}/members[/{userId}]` | учасник | Учасники / один учасник |
+| DELETE | `/api/v1/households/{householdId}/members/{userId}` | сам учасник або `MANAGE_MEMBERS` | Вийти з дому (свій `userId`) або видалити іншого учасника → 204 |
+| PUT | `/api/v1/households/{householdId}/members/{userId}/permissions` | `MANAGE_MEMBERS` | Замінити набір прав (`permissions`) |
+| POST | `/api/v1/households/{householdId}/invitation-code` | `INVITE_MEMBERS` | Згенерувати код; попередній код перестає діяти → 201 |
+| GET / DELETE | `/api/v1/households/{householdId}/invitation-code` | `INVITE_MEMBERS` | Переглянути активний код / відкликати його |
+| POST | `/api/v1/households/join` | зареєстрований користувач | Приєднатися за кодом (`code`) → 201 |
+
+### MembershipPermission
+
+| Право | Що дозволяє |
+|---|---|
+| `MANAGE_CHORES` | Керувати обов'язками дому (для модуля `chore`, поки не перевіряється) |
+| `CONFIRM_COMPLETIONS` | Підтверджувати виконання (для модуля `chore`, поки не перевіряється) |
+| `INVITE_MEMBERS` | Створювати, переглядати й відкликати код запрошення |
+| `MANAGE_MEMBERS` | Видаляти учасників і змінювати їхні права |
+
+Власник завжди має всі права: вони зберігаються в його `Membership` і змінити їх не можна. Новий учасник,
+який приєднався за кодом, отримує `CONFIRM_COMPLETIONS`. Модуль `chore` може перевіряти права через
+`HouseholdClient` (`household/client`: `isMember`, `hasPermission`).
+
+### Бізнес-правила
+
+| № | Правило |
+|---|---|
+| BR-H1 | У дому рівно один власник — поле `ownerId`. Власник завжди є учасником. Задати `ownerId` у тілі запиту не можна: власником стає творець. |
+| BR-H2 | Створити дім або приєднатися до нього може лише зареєстрований `User` (`USER_NOT_FOUND`). |
+| BR-H3 | Передати власність може лише власник (`NOT_HOUSEHOLD_OWNER`, 403) і лише іншому учаснику цього дому (`OWNERSHIP_TRANSFER_TO_SELF`, 400; `MEMBERSHIP_NOT_FOUND`, 404). Новий власник отримує всі права, колишній лишається учасником зі своїми правами. |
+| BR-H4 | Власник не може вийти, поки в домі є інші учасники: спершу передача власності (`OWNER_MUST_TRANSFER_OWNERSHIP`, 409). |
+| BR-H5 | Дім без власника не існує: якщо власник — останній учасник і виходить, дім видаляється разом із членствами та кодом запрошення. Власник може й явно видалити дім. |
+| BR-H6 | Видаляти інших учасників може власник або учасник з `MANAGE_MEMBERS` (`MISSING_PERMISSION`, 403). Власника видалити не можна (`CANNOT_REMOVE_OWNER`, 409). |
+| BR-H7 | Змінювати права може власник або учасник з `MANAGE_MEMBERS`. Права власника незмінні (`OWNER_PERMISSIONS_IMMUTABLE`, 409); власні права змінювати не можна, щоб ніхто не розширив собі доступ (`SELF_PERMISSION_CHANGE_NOT_ALLOWED`, 409). |
+| BR-H8 | Код запрошення: 8 символів без схожих `0/O`, `1/I`, діє 7 днів і може використовуватися багато разів до завершення строку. У дому одночасно лише один активний код: новий заміняє попередній. Регістр і пробіли під час введення не важливі. |
+| BR-H9 | Приєднання за кодом: код має існувати (`INVITATION_CODE_NOT_FOUND`, 404) і не бути простроченим (`INVITATION_CODE_EXPIRED`, 409); користувач ще не має бути учасником (`ALREADY_HOUSEHOLD_MEMBER`, 409). |
+| BR-H10 | Дані дому та список учасників бачать лише учасники (`NOT_HOUSEHOLD_MEMBER`, 403). |
+| BR-U1 | Email користувача унікальний без урахування регістру та зберігається в нижньому регістрі (`EMAIL_ALREADY_TAKEN`, 409). |
+
+Порядок перевірок у `HouseholdServiceImpl`: дім існує (404) → поточний користувач є учасником (403) →
+потрібне право чи роль власника (403) → бізнес-правило (400/409) → збереження.
+
+---
+
 ## Обробка помилок
 
 Усі відповіді про помилки мають формат `ProblemDetail`; код помилки — у полі `code`.
@@ -228,7 +291,7 @@ Content-Type: application/problem+json
 
 | Що | Де |
 |---|---|
-| `ConfirmationStatus` і `canTransitionTo` | `chore/internal/domain/ConfirmationStatus.java` |
+| `ConfirmationStatus` і `canTransitionTo` | `chore/ConfirmationStatus.java` |
 | Guard для `ConfirmationStatus` | `chore/internal/ChoreServiceImpl.java` → `decideConfirmation` |
 | Виняток `InvalidConfirmationStatusException` | `chore/exception/InvalidConfirmationStatusException.java` |
 | `SwapRequestStatus` і `canTransitionTo` | `swap/SwapRequestStatus.java` |
@@ -267,7 +330,7 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 
 | Тест | Що перевіряє |
 |---|---|
-| `chore/internal/domain/ConfirmationStatusTest` | Усі 16 пар `ConfirmationStatus × ConfirmationStatus` збігаються з матрицею вище; матриця охоплює всі значення enum'а; перехід у `null` заборонений |
+| `chore/ConfirmationStatusTest` | Усі 16 пар `ConfirmationStatus × ConfirmationStatus` збігаються з матрицею вище; матриця охоплює всі значення enum'а; перехід у `null` заборонений |
 | `swap/SwapRequestStatusTest` | Те саме для 9 пар `SwapRequestStatus × SwapRequestStatus` |
 | `chore/internal/ChoreServiceImplTest` → `DecideConfirmation` | Guard у сервісі: `CONFIRMED`, `REJECTED`, `NOT_REQUIRED` не можна розглянути повторно; після відмови нічого не зберігається і ротація не рухається |
 | `swap/internal/SwapRequestServiceImplTest` → `RespondToSwapRequest` | Guard у сервісі: з кінцевих станів і з `PENDING` у `PENDING` — виняток; подія не публікується |
@@ -288,6 +351,12 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 
 ## Відомі обмеження
 
+- **Household: немає атомарності багатокрокових змін.** Передача власності, вихід останнього учасника
+  та перевірка унікальності email чи коду запрошення виконуються кількома окремими зверненнями до
+  in-memory сховища. З появою БД це закривається транзакцією та унікальними індексами.
+- **Household: `CurrentUserProvider` — заглушка.** Вона завжди повертає `00000000-0000-0000-0000-000000000001`,
+  і цей id не можна отримати через `POST /api/v1/users`. Тому вручну перевірити сценарії з кількома
+  учасниками не вийде, доки не з'явиться справжня ідентифікація.
 - **Немає атомарності «перевірка + збереження».** `canTransitionTo` і збереження — два окремі кроки. Зараз
   сховище in-memory, тож два одночасні запити (наприклад, двоє підтверджувачів) теоретично можуть обидва
   пройти guard. Із появою БД це закривається оптимістичним блокуванням (`@Version`) або умовним оновленням
