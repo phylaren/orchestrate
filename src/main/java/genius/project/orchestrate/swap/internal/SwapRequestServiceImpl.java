@@ -98,14 +98,10 @@ public class SwapRequestServiceImpl implements SwapRequestService {
             throw new NotSwapRequestReceiverException(currentUserId, requestId);
         }
 
-        if (existing.status() != SwapRequestStatus.PENDING) {
-            throw new InvalidSwapRequestStatusException(
-                    "SwapRequest id=%s is already %s".formatted(requestId, existing.status()));
-        }
-
-        if (request.status() == SwapRequestStatus.PENDING) {
-            throw new InvalidSwapRequestStatusException(
-                    "Cannot set status back to PENDING");
+        SwapRequestStatus currentStatus = existing.status();
+        SwapRequestStatus targetStatus = request.status();
+        if (!currentStatus.canTransitionTo(targetStatus)) {
+            throw new InvalidSwapRequestStatusException(requestId, currentStatus, targetStatus);
         }
 
         SwapRequest updated = repository.update(new SwapRequest(
@@ -113,7 +109,7 @@ public class SwapRequestServiceImpl implements SwapRequestService {
                 existing.choreId(),
                 existing.initiatorUserId(),
                 existing.receiverUserId(),
-                request.status(),
+                targetStatus,
                 existing.createdAt()
         ));
 

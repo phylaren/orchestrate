@@ -4,7 +4,7 @@ import genius.project.orchestrate.chore.internal.domain.Chore;
 import genius.project.orchestrate.chore.internal.domain.ChoreAssignment;
 import genius.project.orchestrate.chore.internal.domain.ChoreCompletion;
 import genius.project.orchestrate.chore.internal.domain.ChoreParticipant;
-import genius.project.orchestrate.chore.internal.domain.ConfirmationStatus;
+import genius.project.orchestrate.chore.ConfirmationStatus;
 import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
