@@ -1,8 +1,8 @@
 package genius.project.orchestrate.chore;
 
-import genius.project.orchestrate.chore.dto.CompletionCreateRequest;
 import genius.project.orchestrate.chore.dto.CompletionResponse;
 import genius.project.orchestrate.chore.dto.ConfirmationDecisionRequest;
+import genius.project.orchestrate.identity.CurrentUserProvider;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,16 +22,19 @@ import java.util.UUID;
 public class ChoreCompletionController {
 
     private final ChoreCompletionService choreCompletionService;
+    private final CurrentUserProvider currentUserProvider;
 
-    public ChoreCompletionController(ChoreCompletionService choreCompletionService) {
+    public ChoreCompletionController(ChoreCompletionService choreCompletionService,
+                                     CurrentUserProvider currentUserProvider) {
         this.choreCompletionService = choreCompletionService;
+        this.currentUserProvider = currentUserProvider;
     }
 
     @PostMapping
     public ResponseEntity<CompletionResponse> markCompleted(@PathVariable UUID choreId,
-                                                            @Valid @RequestBody CompletionCreateRequest request,
                                                             UriComponentsBuilder uriBuilder) {
-        CompletionResponse completion = choreCompletionService.markCompleted(choreId, request.userId());
+        UUID userId = currentUserProvider.getUserId();
+        CompletionResponse completion = choreCompletionService.markCompleted(choreId, userId);
         URI location = uriBuilder
                 .path("/api/v1/chores/{choreId}/completions/{completionId}")
                 .buildAndExpand(choreId, completion.id())
@@ -53,7 +56,8 @@ public class ChoreCompletionController {
     public CompletionResponse decideConfirmation(@PathVariable UUID choreId,
                                                  @PathVariable UUID completionId,
                                                  @Valid @RequestBody ConfirmationDecisionRequest request) {
+        UUID confirmedByUserId = currentUserProvider.getUserId();
         return choreCompletionService.decideConfirmation(
-                choreId, completionId, request.confirmedByUserId(), request.approved());
+                choreId, completionId, confirmedByUserId, request.approved());
     }
 }
