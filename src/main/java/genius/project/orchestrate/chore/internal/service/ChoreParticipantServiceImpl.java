@@ -5,6 +5,7 @@ import genius.project.orchestrate.chore.RotationService;
 import genius.project.orchestrate.chore.client.ChoreClient;
 import genius.project.orchestrate.chore.dto.AssignmentResponse;
 import genius.project.orchestrate.chore.dto.ParticipantResponse;
+import genius.project.orchestrate.chore.dto.RotationScheduleResponse;
 import genius.project.orchestrate.chore.internal.domain.Chore;
 import genius.project.orchestrate.chore.internal.domain.ChoreParticipant;
 import genius.project.orchestrate.chore.internal.repository.ChoreParticipantStore;
@@ -81,25 +82,19 @@ class ChoreParticipantServiceImpl implements ChoreParticipantService, ChoreClien
     }
 
     @Override
+    public int currentCycleNumber(UUID choreId) {
+        getChoreOrThrow(choreId);
+        return rotationService.getSchedule(choreId)
+                .map(RotationScheduleResponse::cycleNumber)
+                .orElseThrow(() -> ResourceNotFoundException.of("rotationSchedule", choreId));
+    }
+
+    @Override
     public Optional<AssignmentResponse> getCurrentAssignment(UUID choreId) {
         getChoreOrThrow(choreId);
         return rotationRepository.findByChoreId(choreId)
                 .filter(s -> !s.isEmpty())
                 .map(AssignmentResponse::from);
-    }
-
-    @Override
-    public void swapTurns(UUID choreId, UUID fromUserId, UUID toUserId) {
-        getChoreOrThrow(choreId);
-
-        if (!participantStore.existsByChoreIdAndUserId(choreId, fromUserId)
-                || !participantStore.existsByChoreIdAndUserId(choreId, toUserId)) {
-            throw new BusinessRuleViolationException(
-                    "NOT_IN_SAME_GROUP",
-                    "Both users must be members of this chore's rotation group to swap turns.");
-        }
-
-        rotationService.swapPositions(choreId, fromUserId, toUserId);
     }
 
     private Chore getChoreOrThrow(UUID choreId) {

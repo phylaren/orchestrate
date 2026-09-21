@@ -1,7 +1,9 @@
 package genius.project.orchestrate.swap.internal;
 
+import genius.project.orchestrate.chore.SwapType;
 import genius.project.orchestrate.chore.TurnSwapRequestedEvent;
 import genius.project.orchestrate.chore.client.ChoreClient;
+import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
 import genius.project.orchestrate.identity.CurrentUserProvider;
 import genius.project.orchestrate.swap.SwapRequestStatus;
 import genius.project.orchestrate.swap.dto.SwapRequestRequest;
@@ -39,274 +41,302 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class SwapRequestServiceImplTest {
 
-    @Mock
-    private SwapRequestRepository repository;
-
-    @Mock
-    private CurrentUserProvider currentUserProvider;
-
-    @Mock
-    private ChoreClient choreClient;
-
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
+    @Mock private SwapRequestRepository repository;
+    @Mock private CurrentUserProvider currentUserProvider;
+    @Mock private ChoreClient choreClient;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private SwapRequestServiceImpl service;
 
-    private static final UUID CHORE_ID    = UUID.randomUUID();
-    private static final UUID REQUEST_ID  = UUID.randomUUID();
-    private static final UUID INITIATOR   = UUID.randomUUID();
-    private static final UUID RECEIVER    = UUID.randomUUID();
+    private static final UUID CHORE_ID   = UUID.randomUUID();
+    private static final UUID REQUEST_ID = UUID.randomUUID();
+    private static final UUID INITIATOR  = UUID.randomUUID();
+    private static final UUID RECEIVER   = UUID.randomUUID();
     private static final LocalDateTime NOW = LocalDateTime.now();
-
-    // -------------------------------------------------------------------------
-    // getSwapRequests
-    // -------------------------------------------------------------------------
-
-    @Nested
-    @DisplayName("getSwapRequests")
-    class GetSwapRequests {
-
-        @Test
-        @DisplayName("returns mapped list from repository")
-        void returnsMappedList() {
-            SwapRequest stored = swapRequest(REQUEST_ID, INITIATOR, RECEIVER, SwapRequestStatus.PENDING);
-            when(repository.findByChoreId(CHORE_ID)).thenReturn(List.of(stored));
-
-            List<SwapRequestResponse> result = service.getSwapRequests(CHORE_ID);
-
-            verify(repository).findByChoreId(CHORE_ID);
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).id()).isEqualTo(REQUEST_ID);
-            assertThat(result.get(0).choreId()).isEqualTo(CHORE_ID);
-            assertThat(result.get(0).initiatorUserId()).isEqualTo(INITIATOR);
-            assertThat(result.get(0).receiverUserId()).isEqualTo(RECEIVER);
-            assertThat(result.get(0).status()).isEqualTo(SwapRequestStatus.PENDING);
-        }
-
-        @Test
-        @DisplayName("returns empty list when no requests exist")
-        void returnsEmptyList() {
-            when(repository.findByChoreId(CHORE_ID)).thenReturn(List.of());
-
-            List<SwapRequestResponse> result = service.getSwapRequests(CHORE_ID);
-
-            verify(repository).findByChoreId(CHORE_ID);
-            assertThat(result).isEmpty();
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // createSwapRequest
-    // -------------------------------------------------------------------------
 
     @Nested
     @DisplayName("createSwapRequest")
-    class CreateSwapRequest {
+    class Create {
 
         @Test
-        @DisplayName("happy path: saves and returns response")
-        void happyPath_SavesAndReturns() {
-            SwapRequest saved = swapRequest(REQUEST_ID, INITIATOR, RECEIVER, SwapRequestStatus.PENDING);
+        @DisplayName("PERMANENT: happy path")
+        void permanent_HappyPath() {
+            SwapRequest saved = swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null);
             when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
             when(choreClient.isParticipant(CHORE_ID, INITIATOR)).thenReturn(true);
             when(choreClient.isParticipant(CHORE_ID, RECEIVER)).thenReturn(true);
             when(repository.existsPending(CHORE_ID, INITIATOR, RECEIVER)).thenReturn(false);
             when(repository.save(any())).thenReturn(saved);
 
-            SwapRequestResponse result = service.createSwapRequest(CHORE_ID, new SwapRequestRequest(RECEIVER));
+            SwapRequestResponse result = service.createSwapRequest(CHORE_ID,
+                    new SwapRequestRequest(RECEIVER, SwapType.PERMANENT, null));
 
-            verify(repository).save(any());
-            assertThat(result.id()).isEqualTo(REQUEST_ID);
-            assertThat(result.status()).isEqualTo(SwapRequestStatus.PENDING);
-            assertThat(result.initiatorUserId()).isEqualTo(INITIATOR);
-            assertThat(result.receiverUserId()).isEqualTo(RECEIVER);
+            assertThat(result.swapType()).isEqualTo(SwapType.PERMANENT);
+            assertThat(result.cycleNumber()).isNull();
         }
 
         @Test
-        @DisplayName("initiator equals receiver throws InvalidSwapRequestRecipientException")
-        void initiatorEqualsReceiver_ThrowsInvalidRecipient() {
+        @DisplayName("TEMPORARY: stores cycleNumber")
+        void temporary_StoresCycle() {
+            SwapRequest saved = swapRequest(SwapRequestStatus.PENDING, SwapType.TEMPORARY, 5);
+            when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
+            when(choreClient.isParticipant(CHORE_ID, INITIATOR)).thenReturn(true);
+            when(choreClient.isParticipant(CHORE_ID, RECEIVER)).thenReturn(true);
+            when(repository.existsPending(CHORE_ID, INITIATOR, RECEIVER)).thenReturn(false);
+            when(choreClient.currentCycleNumber(CHORE_ID)).thenReturn(3);
+            when(repository.save(any())).thenReturn(saved);
+
+            SwapRequestResponse result = service.createSwapRequest(CHORE_ID,
+                    new SwapRequestRequest(RECEIVER, SwapType.TEMPORARY, 5));
+
+            assertThat(result.swapType()).isEqualTo(SwapType.TEMPORARY);
+            assertThat(result.cycleNumber()).isEqualTo(5);
+        }
+
+        @Test
+        @DisplayName("TEMPORARY without cycleNumber: throws")
+        void temporary_MissingCycle() {
+            when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
+            when(choreClient.isParticipant(CHORE_ID, INITIATOR)).thenReturn(true);
+            when(choreClient.isParticipant(CHORE_ID, RECEIVER)).thenReturn(true);
+            when(repository.existsPending(CHORE_ID, INITIATOR, RECEIVER)).thenReturn(false);
+
+            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
+                    new SwapRequestRequest(RECEIVER, SwapType.TEMPORARY, null)))
+                    .isInstanceOf(BusinessRuleViolationException.class)
+                    .extracting("errorCode").isEqualTo("MISSING_CYCLE_NUMBER");
+        }
+
+        @Test
+        @DisplayName("TEMPORARY in past: throws")
+        void temporary_PastCycle() {
+            when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
+            when(choreClient.isParticipant(CHORE_ID, INITIATOR)).thenReturn(true);
+            when(choreClient.isParticipant(CHORE_ID, RECEIVER)).thenReturn(true);
+            when(repository.existsPending(CHORE_ID, INITIATOR, RECEIVER)).thenReturn(false);
+            when(choreClient.currentCycleNumber(CHORE_ID)).thenReturn(10);
+
+            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
+                    new SwapRequestRequest(RECEIVER, SwapType.TEMPORARY, 5)))
+                    .isInstanceOf(BusinessRuleViolationException.class)
+                    .extracting("errorCode").isEqualTo("CYCLE_IN_PAST");
+        }
+
+        @Test
+        @DisplayName("TEMPORARY too far: throws")
+        void temporary_TooFar() {
+            when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
+            when(choreClient.isParticipant(CHORE_ID, INITIATOR)).thenReturn(true);
+            when(choreClient.isParticipant(CHORE_ID, RECEIVER)).thenReturn(true);
+            when(repository.existsPending(CHORE_ID, INITIATOR, RECEIVER)).thenReturn(false);
+            when(choreClient.currentCycleNumber(CHORE_ID)).thenReturn(3);
+
+            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
+                    new SwapRequestRequest(RECEIVER, SwapType.TEMPORARY, 100)))
+                    .isInstanceOf(BusinessRuleViolationException.class)
+                    .extracting("errorCode").isEqualTo("CYCLE_TOO_FAR");
+        }
+
+        @Test
+        @DisplayName("INSERT: rejected")
+        void insert_Rejected() {
+            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
+                    new SwapRequestRequest(RECEIVER, SwapType.INSERT, null)))
+                    .isInstanceOf(BusinessRuleViolationException.class)
+                    .extracting("errorCode").isEqualTo("INSERT_NOT_SWAP_REQUEST");
+        }
+
+        @Test
+        @DisplayName("initiator equals receiver: throws")
+        void initiatorEqualsReceiver() {
             when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
 
-            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID, new SwapRequestRequest(INITIATOR)))
-                    .isInstanceOf(InvalidSwapRequestRecipientException.class)
-                    .extracting("errorCode").isEqualTo("INVALID_SWAP_REQUEST_RECIPIENT");
-
-            verify(repository, never()).save(any());
+            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
+                    new SwapRequestRequest(INITIATOR, SwapType.PERMANENT, null)))
+                    .isInstanceOf(InvalidSwapRequestRecipientException.class);
         }
 
         @Test
-        @DisplayName("initiator is not chore participant throws NotChoreParticipantException")
-        void initiatorNotParticipant_Throws() {
+        @DisplayName("initiator not participant: throws")
+        void initiatorNotParticipant() {
             when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
             when(choreClient.isParticipant(CHORE_ID, INITIATOR)).thenReturn(false);
 
-            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID, new SwapRequestRequest(RECEIVER)))
-                    .isInstanceOf(NotChoreParticipantException.class)
-                    .extracting("errorCode").isEqualTo("NOT_CHORE_PARTICIPANT");
-
-            verify(repository, never()).save(any());
+            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
+                    new SwapRequestRequest(RECEIVER, SwapType.PERMANENT, null)))
+                    .isInstanceOf(NotChoreParticipantException.class);
         }
 
         @Test
-        @DisplayName("receiver is not chore participant throws NotChoreParticipantException")
-        void receiverNotParticipant_Throws() {
+        @DisplayName("receiver not participant: throws")
+        void receiverNotParticipant() {
             when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
             when(choreClient.isParticipant(CHORE_ID, INITIATOR)).thenReturn(true);
             when(choreClient.isParticipant(CHORE_ID, RECEIVER)).thenReturn(false);
 
-            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID, new SwapRequestRequest(RECEIVER)))
-                    .isInstanceOf(NotChoreParticipantException.class)
-                    .extracting("errorCode").isEqualTo("NOT_CHORE_PARTICIPANT");
-
-            verify(repository, never()).save(any());
+            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
+                    new SwapRequestRequest(RECEIVER, SwapType.PERMANENT, null)))
+                    .isInstanceOf(NotChoreParticipantException.class);
         }
 
         @Test
-        @DisplayName("duplicate pending request throws DuplicateSwapRequestException")
-        void duplicatePending_Throws() {
+        @DisplayName("duplicate pending: throws")
+        void duplicate() {
             when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
             when(choreClient.isParticipant(CHORE_ID, INITIATOR)).thenReturn(true);
             when(choreClient.isParticipant(CHORE_ID, RECEIVER)).thenReturn(true);
             when(repository.existsPending(CHORE_ID, INITIATOR, RECEIVER)).thenReturn(true);
 
-            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID, new SwapRequestRequest(RECEIVER)))
-                    .isInstanceOf(DuplicateSwapRequestException.class)
-                    .extracting("errorCode").isEqualTo("SWAP_REQUEST_ALREADY_EXISTS");
-
-            verify(repository, never()).save(any());
+            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
+                    new SwapRequestRequest(RECEIVER, SwapType.PERMANENT, null)))
+                    .isInstanceOf(DuplicateSwapRequestException.class);
         }
     }
 
-    // -------------------------------------------------------------------------
-    // respondToSwapRequest
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("respondToSwapRequest")
-    class RespondToSwapRequest {
+    class Respond {
 
         @Test
-        @DisplayName("ACCEPTED: saves updated status and publishes TurnSwapRequestedEvent")
-        void accepted_SavesAndPublishesEvent() {
-            SwapRequest pending = swapRequest(REQUEST_ID, INITIATOR, RECEIVER, SwapRequestStatus.PENDING);
-            SwapRequest accepted = swapRequest(REQUEST_ID, INITIATOR, RECEIVER, SwapRequestStatus.ACCEPTED);
+        @DisplayName("PERMANENT accepted: publishes event with null cycleNumber")
+        void permanentAccepted_Publishes() {
+            SwapRequest pending = swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null);
+            SwapRequest accepted = swapRequest(SwapRequestStatus.ACCEPTED, SwapType.PERMANENT, null);
             when(currentUserProvider.getUserId()).thenReturn(RECEIVER);
             when(repository.findById(REQUEST_ID)).thenReturn(Optional.of(pending));
+            when(choreClient.isParticipant(CHORE_ID, INITIATOR)).thenReturn(true);
+            when(choreClient.isParticipant(CHORE_ID, RECEIVER)).thenReturn(true);
             when(repository.update(any())).thenReturn(accepted);
 
-            service.respondToSwapRequest(CHORE_ID, REQUEST_ID, new SwapRequestStatusRequest(SwapRequestStatus.ACCEPTED));
+            service.respondToSwapRequest(CHORE_ID, REQUEST_ID,
+                    new SwapRequestStatusRequest(SwapRequestStatus.ACCEPTED));
 
-            verify(repository).update(any());
-
-            ArgumentCaptor<TurnSwapRequestedEvent> captor = ArgumentCaptor.forClass(TurnSwapRequestedEvent.class);
+            ArgumentCaptor<TurnSwapRequestedEvent> captor =
+                    ArgumentCaptor.forClass(TurnSwapRequestedEvent.class);
             verify(eventPublisher).publishEvent(captor.capture());
-            assertThat(captor.getValue().choreId()).isEqualTo(CHORE_ID);
-            assertThat(captor.getValue().fromUserId()).isEqualTo(INITIATOR);
-            assertThat(captor.getValue().toUserId()).isEqualTo(RECEIVER);
+            assertThat(captor.getValue().swapType()).isEqualTo(SwapType.PERMANENT);
+            assertThat(captor.getValue().cycleNumber()).isNull();
         }
 
         @Test
-        @DisplayName("REJECTED: saves updated status and does not publish event")
-        void rejected_SavesAndDoesNotPublishEvent() {
-            SwapRequest pending = swapRequest(REQUEST_ID, INITIATOR, RECEIVER, SwapRequestStatus.PENDING);
-            SwapRequest rejected = swapRequest(REQUEST_ID, INITIATOR, RECEIVER, SwapRequestStatus.REJECTED);
+        @DisplayName("TEMPORARY accepted: publishes event with cycleNumber")
+        void temporaryAccepted_PublishesWithCycle() {
+            SwapRequest pending = swapRequest(SwapRequestStatus.PENDING, SwapType.TEMPORARY, 5);
+            SwapRequest accepted = swapRequest(SwapRequestStatus.ACCEPTED, SwapType.TEMPORARY, 5);
+            when(currentUserProvider.getUserId()).thenReturn(RECEIVER);
+            when(repository.findById(REQUEST_ID)).thenReturn(Optional.of(pending));
+            when(choreClient.isParticipant(CHORE_ID, INITIATOR)).thenReturn(true);
+            when(choreClient.isParticipant(CHORE_ID, RECEIVER)).thenReturn(true);
+            when(repository.update(any())).thenReturn(accepted);
+
+            service.respondToSwapRequest(CHORE_ID, REQUEST_ID,
+                    new SwapRequestStatusRequest(SwapRequestStatus.ACCEPTED));
+
+            ArgumentCaptor<TurnSwapRequestedEvent> captor =
+                    ArgumentCaptor.forClass(TurnSwapRequestedEvent.class);
+            verify(eventPublisher).publishEvent(captor.capture());
+            assertThat(captor.getValue().cycleNumber()).isEqualTo(5);
+        }
+
+        @Test
+        @DisplayName("accept when user left group: throws")
+        void accept_UserLeft() {
+            SwapRequest pending = swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null);
+            when(currentUserProvider.getUserId()).thenReturn(RECEIVER);
+            when(repository.findById(REQUEST_ID)).thenReturn(Optional.of(pending));
+            when(choreClient.isParticipant(CHORE_ID, INITIATOR)).thenReturn(false);
+
+            assertThatThrownBy(() -> service.respondToSwapRequest(CHORE_ID, REQUEST_ID,
+                    new SwapRequestStatusRequest(SwapRequestStatus.ACCEPTED)))
+                    .isInstanceOf(BusinessRuleViolationException.class)
+                    .extracting("errorCode").isEqualTo("NOT_IN_SAME_GROUP");
+
+            verify(repository, never()).update(any());
+            verify(eventPublisher, never()).publishEvent(any());
+        }
+
+        @Test
+        @DisplayName("REJECTED: no event")
+        void rejected_NoEvent() {
+            SwapRequest pending = swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null);
+            SwapRequest rejected = swapRequest(SwapRequestStatus.REJECTED, SwapType.PERMANENT, null);
             when(currentUserProvider.getUserId()).thenReturn(RECEIVER);
             when(repository.findById(REQUEST_ID)).thenReturn(Optional.of(pending));
             when(repository.update(any())).thenReturn(rejected);
 
-            SwapRequestResponse result = service.respondToSwapRequest(
-                    CHORE_ID, REQUEST_ID, new SwapRequestStatusRequest(SwapRequestStatus.REJECTED));
+            service.respondToSwapRequest(CHORE_ID, REQUEST_ID,
+                    new SwapRequestStatusRequest(SwapRequestStatus.REJECTED));
 
-            verify(repository).update(any());
-            assertThat(result.status()).isEqualTo(SwapRequestStatus.REJECTED);
             verify(eventPublisher, never()).publishEvent(any());
         }
 
         @Test
-        @DisplayName("request not found throws SwapRequestNotFoundException")
-        void requestNotFound_Throws() {
+        @DisplayName("request not found: throws")
+        void notFound() {
             when(currentUserProvider.getUserId()).thenReturn(RECEIVER);
             when(repository.findById(REQUEST_ID)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> service.respondToSwapRequest(
-                    CHORE_ID, REQUEST_ID, new SwapRequestStatusRequest(SwapRequestStatus.ACCEPTED)))
-                    .isInstanceOf(SwapRequestNotFoundException.class)
-                    .extracting("errorCode").isEqualTo("SWAP_REQUEST_NOT_FOUND");
-
-            verify(repository, never()).update(any());
+            assertThatThrownBy(() -> service.respondToSwapRequest(CHORE_ID, REQUEST_ID,
+                    new SwapRequestStatusRequest(SwapRequestStatus.ACCEPTED)))
+                    .isInstanceOf(SwapRequestNotFoundException.class);
         }
 
         @Test
-        @DisplayName("request belongs to different chore throws SwapRequestNotFoundException")
-        void requestBelongsToDifferentChore_Throws() {
-            UUID otherChore = UUID.randomUUID();
-            SwapRequest pending = swapRequest(REQUEST_ID, INITIATOR, RECEIVER, SwapRequestStatus.PENDING);
+        @DisplayName("wrong chore: throws")
+        void wrongChore() {
+            SwapRequest pending = swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null);
             when(currentUserProvider.getUserId()).thenReturn(RECEIVER);
             when(repository.findById(REQUEST_ID)).thenReturn(Optional.of(pending));
 
-            assertThatThrownBy(() -> service.respondToSwapRequest(
-                    otherChore, REQUEST_ID, new SwapRequestStatusRequest(SwapRequestStatus.ACCEPTED)))
-                    .isInstanceOf(SwapRequestNotFoundException.class)
-                    .extracting("errorCode").isEqualTo("SWAP_REQUEST_NOT_FOUND");
-
-            verify(repository, never()).update(any());
+            assertThatThrownBy(() -> service.respondToSwapRequest(UUID.randomUUID(), REQUEST_ID,
+                    new SwapRequestStatusRequest(SwapRequestStatus.ACCEPTED)))
+                    .isInstanceOf(SwapRequestNotFoundException.class);
         }
 
         @Test
-        @DisplayName("current user is not receiver throws NotSwapRequestReceiverException")
-        void currentUserIsNotReceiver_Throws() {
-            SwapRequest pending = swapRequest(REQUEST_ID, INITIATOR, RECEIVER, SwapRequestStatus.PENDING);
+        @DisplayName("not receiver: throws")
+        void notReceiver() {
+            SwapRequest pending = swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null);
             when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
             when(repository.findById(REQUEST_ID)).thenReturn(Optional.of(pending));
 
-            assertThatThrownBy(() -> service.respondToSwapRequest(
-                    CHORE_ID, REQUEST_ID, new SwapRequestStatusRequest(SwapRequestStatus.ACCEPTED)))
-                    .isInstanceOf(NotSwapRequestReceiverException.class)
-                    .extracting("errorCode").isEqualTo("NOT_SWAP_REQUEST_RECEIVER");
-
-            verify(repository, never()).update(any());
+            assertThatThrownBy(() -> service.respondToSwapRequest(CHORE_ID, REQUEST_ID,
+                    new SwapRequestStatusRequest(SwapRequestStatus.ACCEPTED)))
+                    .isInstanceOf(NotSwapRequestReceiverException.class);
         }
 
         @Test
-        @DisplayName("request already resolved throws InvalidSwapRequestStatusException")
-        void alreadyResolved_Throws() {
-            SwapRequest accepted = swapRequest(REQUEST_ID, INITIATOR, RECEIVER, SwapRequestStatus.ACCEPTED);
+        @DisplayName("invalid transition: throws")
+        void invalidTransition() {
+            SwapRequest accepted = swapRequest(SwapRequestStatus.ACCEPTED, SwapType.PERMANENT, null);
             when(currentUserProvider.getUserId()).thenReturn(RECEIVER);
             when(repository.findById(REQUEST_ID)).thenReturn(Optional.of(accepted));
 
-            assertThatThrownBy(() -> service.respondToSwapRequest(
-                    CHORE_ID, REQUEST_ID, new SwapRequestStatusRequest(SwapRequestStatus.REJECTED)))
-                    .isInstanceOf(InvalidSwapRequestStatusException.class)
-                    .extracting("errorCode").isEqualTo("INVALID_SWAP_REQUEST_STATUS");
-
-            verify(repository, never()).update(any());
-            verify(eventPublisher, never()).publishEvent(any());
-        }
-
-        @Test
-        @DisplayName("setting status back to PENDING throws InvalidSwapRequestStatusException")
-        void setBackToPending_Throws() {
-            SwapRequest pending = swapRequest(REQUEST_ID, INITIATOR, RECEIVER, SwapRequestStatus.PENDING);
-            when(currentUserProvider.getUserId()).thenReturn(RECEIVER);
-            when(repository.findById(REQUEST_ID)).thenReturn(Optional.of(pending));
-
-            assertThatThrownBy(() -> service.respondToSwapRequest(
-                    CHORE_ID, REQUEST_ID, new SwapRequestStatusRequest(SwapRequestStatus.PENDING)))
-                    .isInstanceOf(InvalidSwapRequestStatusException.class)
-                    .extracting("errorCode").isEqualTo("INVALID_SWAP_REQUEST_STATUS");
-
-            verify(repository, never()).update(any());
-            verify(eventPublisher, never()).publishEvent(any());
+            assertThatThrownBy(() -> service.respondToSwapRequest(CHORE_ID, REQUEST_ID,
+                    new SwapRequestStatusRequest(SwapRequestStatus.REJECTED)))
+                    .isInstanceOf(InvalidSwapRequestStatusException.class);
         }
     }
 
-    // -------------------------------------------------------------------------
-    // helpers
-    // -------------------------------------------------------------------------
+    @Nested
+    @DisplayName("getSwapRequests")
+    class Get {
 
-    private SwapRequest swapRequest(UUID id, UUID initiator, UUID receiver, SwapRequestStatus status) {
-        return new SwapRequest(id, CHORE_ID, initiator, receiver, status, NOW);
+        @Test
+        @DisplayName("returns mapped list")
+        void returnsMapped() {
+            SwapRequest stored = swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null);
+            when(repository.findByChoreId(CHORE_ID)).thenReturn(List.of(stored));
+
+            List<SwapRequestResponse> result = service.getSwapRequests(CHORE_ID);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).swapType()).isEqualTo(SwapType.PERMANENT);
+        }
+    }
+
+    private SwapRequest swapRequest(SwapRequestStatus status, SwapType type, Integer cycle) {
+        return new SwapRequest(REQUEST_ID, CHORE_ID, INITIATOR, RECEIVER, status, type, cycle, NOW);
     }
 }

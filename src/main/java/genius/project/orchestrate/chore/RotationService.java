@@ -15,7 +15,9 @@ public interface RotationService {
 
     RotationScheduleResponse advance(UUID choreId);
 
-    RotationScheduleResponse swapPositions(UUID choreId, UUID userA, UUID userB);
+    void swap(UUID choreId, UUID fromUserId, UUID toUserId, SwapType swapType, Integer cycleNumber);
+
+    RotationScheduleResponse insert(UUID choreId, UUID userId, int position);
 
     Optional<UUID> currentResponsible(UUID choreId);
 

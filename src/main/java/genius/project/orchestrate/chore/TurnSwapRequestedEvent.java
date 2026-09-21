@@ -5,6 +5,7 @@ import java.util.UUID;
 public record TurnSwapRequestedEvent(
         UUID choreId,
         UUID fromUserId,
-        UUID toUserId
-) {
-}
+        UUID toUserId,
+        SwapType swapType,
+        Integer cycleNumber
+) {}

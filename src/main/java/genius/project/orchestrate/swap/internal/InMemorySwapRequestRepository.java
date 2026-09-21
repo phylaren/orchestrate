@@ -24,8 +24,9 @@ public class InMemorySwapRequestRepository implements SwapRequestRepository {
                 swapRequest.initiatorUserId(),
                 swapRequest.receiverUserId(),
                 swapRequest.status(),
-                swapRequest.createdAt()
-        );
+                swapRequest.swapType(),
+                swapRequest.cycleNumber(),
+                swapRequest.createdAt());
         store.put(id, saved);
         return saved;
     }
