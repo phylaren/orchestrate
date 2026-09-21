@@ -1,6 +1,8 @@
 package genius.project.orchestrate.chore.internal.service.handler;
 
 import genius.project.orchestrate.chore.SwapType;
+import genius.project.orchestrate.chore.exception.PositionOutOfBoundsException;
+import genius.project.orchestrate.chore.exception.UserNotInRotationException;
 import genius.project.orchestrate.chore.internal.domain.RotationSchedule;
 import genius.project.orchestrate.chore.internal.service.strategy.InsertSwapStrategy;
 import genius.project.orchestrate.chore.internal.service.strategy.SwapCommand;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class InsertSwapStrategyTest {
 
@@ -73,30 +76,27 @@ class InsertSwapStrategyTest {
         assertThat(result.currentIndex()).isEqualTo(2);
         assertThat(result.currentResponsible()).isEqualTo(USER_B);
     }
-
     @Test
-    @DisplayName("user not in group: no-op")
-    void userNotInGroup_NoOp() {
+    @DisplayName("user not in group: throws")
+    void userNotInGroup_Throws() {
         RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 1);
         UUID stranger = UUID.randomUUID();
 
-        SwapOutcome outcome = strategy.execute(current,
-                new SwapCommand.Insert(stranger, 0));
-
-        RotationSchedule result = ((SwapOutcome.ApplyNow) outcome).schedule();
-        assertThat(result).isSameAs(current);
+        assertThatThrownBy(() -> strategy.execute(current,
+                new SwapCommand.Insert(stranger, 0)))
+                .isInstanceOf(UserNotInRotationException.class)
+                .extracting("errorCode").isEqualTo("USER_NOT_IN_ROTATION");
     }
 
     @Test
-    @DisplayName("position out of bounds: no-op")
-    void positionOutOfBounds_NoOp() {
+    @DisplayName("position out of bounds: throws")
+    void positionOutOfBounds_Throws() {
         RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 1);
 
-        SwapOutcome outcome = strategy.execute(current,
-                new SwapCommand.Insert(USER_A, 5));
-
-        RotationSchedule result = ((SwapOutcome.ApplyNow) outcome).schedule();
-        assertThat(result).isSameAs(current);
+        assertThatThrownBy(() -> strategy.execute(current,
+                new SwapCommand.Insert(USER_A, 5)))
+                .isInstanceOf(PositionOutOfBoundsException.class)
+                .extracting("errorCode").isEqualTo("POSITION_OUT_OF_BOUNDS");
     }
 
     @Test
