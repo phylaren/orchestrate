@@ -1,6 +1,8 @@
 package genius.project.orchestrate.chore.internal.service.handler;
 
 import genius.project.orchestrate.chore.SwapType;
+import genius.project.orchestrate.chore.exception.SameUserSwapException;
+import genius.project.orchestrate.chore.exception.UserNotInRotationException;
 import genius.project.orchestrate.chore.internal.domain.RotationSchedule;
 import genius.project.orchestrate.chore.internal.service.strategy.SwapCommand;
 import genius.project.orchestrate.chore.internal.service.strategy.SwapOutcome;
@@ -56,6 +58,27 @@ class TemporarySwapStrategyTest {
                 new SwapCommand.Swap(USER_A, USER_B, null)))
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .extracting("errorCode").isEqualTo("MISSING_CYCLE_NUMBER");
+    }
+
+    @Test
+    @DisplayName("same user: throws")
+    void sameUser_Throws() {
+        RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 3);
+
+        assertThatThrownBy(() -> strategy.execute(current,
+                new SwapCommand.Swap(USER_A, USER_A, 5)))
+                .isInstanceOf(SameUserSwapException.class);
+    }
+
+    @Test
+    @DisplayName("user not in group: throws")
+    void userNotInGroup_Throws() {
+        RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 3);
+        UUID stranger = UUID.randomUUID();
+
+        assertThatThrownBy(() -> strategy.execute(current,
+                new SwapCommand.Swap(USER_A, stranger, 5)))
+                .isInstanceOf(UserNotInRotationException.class);
     }
 
     private RotationSchedule schedule(List<UUID> order, int index, int cycle) {

@@ -1,6 +1,8 @@
 package genius.project.orchestrate.chore.internal.service.strategy;
 
 import genius.project.orchestrate.chore.SwapType;
+import genius.project.orchestrate.chore.exception.PositionOutOfBoundsException;
+import genius.project.orchestrate.chore.exception.UserNotInRotationException;
 import genius.project.orchestrate.chore.internal.domain.RotationSchedule;
 import org.springframework.stereotype.Component;
 
@@ -22,22 +24,15 @@ public class InsertSwapStrategy implements SwapStrategy {
         var insert = (SwapCommand.Insert) command;
         UUID userId = insert.userId();
         int targetPosition = insert.position();
-
-        List<UUID> base = current.baseOrder();
-        if (!base.contains(userId)) {
-            return new SwapOutcome.ApplyNow(current);
-        }
-        if (targetPosition < 0 || targetPosition >= base.size()) {
-            return new SwapOutcome.ApplyNow(current);
-        }
+        validate(current, userId, targetPosition);
 
         UUID responsible = current.currentResponsible();
-        int oldIndex = base.indexOf(userId);
+        int oldIndex = current.baseOrder().indexOf(userId);
         if (oldIndex == targetPosition) {
             return new SwapOutcome.ApplyNow(current);
         }
 
-        List<UUID> newOrder = new ArrayList<>(base);
+        List<UUID> newOrder = new ArrayList<>(current.baseOrder());
         newOrder.remove(oldIndex);
         newOrder.add(targetPosition, userId);
 
@@ -59,5 +54,14 @@ public class InsertSwapStrategy implements SwapStrategy {
                 newCurrentIndex,
                 newCycleNumber,
                 newCycleStartedAt));
+    }
+
+    private void validate(RotationSchedule current, UUID userId, int position) {
+        if (!current.baseOrder().contains(userId)) {
+            throw new UserNotInRotationException(userId);
+        }
+        if (position < 0 || position >= current.baseOrder().size()) {
+            throw new PositionOutOfBoundsException(position, current.baseOrder().size());
+        }
     }
 }
