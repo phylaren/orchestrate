@@ -1,5 +1,6 @@
 package genius.project.orchestrate.swap.dto;
 
+import genius.project.orchestrate.chore.SwapType;
 import genius.project.orchestrate.swap.SwapRequestStatus;
 
 import java.time.LocalDateTime;
@@ -11,5 +12,7 @@ public record SwapRequestResponse(
         UUID initiatorUserId,
         UUID receiverUserId,
         SwapRequestStatus status,
+        SwapType swapType,
+        Integer cycleNumber,
         LocalDateTime createdAt
 ) {}

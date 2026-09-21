@@ -6,5 +6,5 @@ public interface ChoreClient {
 
     boolean isParticipant(UUID choreId, UUID userId);
 
-    void swapTurns(UUID choreId, UUID fromUserId, UUID toUserId);
+    int currentCycleNumber(UUID choreId);
 }
