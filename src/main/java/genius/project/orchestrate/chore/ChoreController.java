@@ -2,7 +2,8 @@ package genius.project.orchestrate.chore;
 
 import genius.project.orchestrate.chore.dto.ChoreCreateRequest;
 import genius.project.orchestrate.chore.dto.ChoreResponse;
-import genius.project.orchestrate.chore.internal.domain.Chore;
+import genius.project.orchestrate.chore.dto.RotationScheduleResponse;
+import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,16 +23,16 @@ import java.util.UUID;
 @RequestMapping("/api/v1/chores")
 public class ChoreController {
 
-    private final ChoreService choreService;
+    private final ChoreLifecycleService choreLifecycleService;
 
-    public ChoreController(ChoreService choreService) {
-        this.choreService = choreService;
+    public ChoreController(ChoreLifecycleService choreLifecycleService) {
+        this.choreLifecycleService = choreLifecycleService;
     }
 
     @PostMapping
     public ResponseEntity<ChoreResponse> createChore(@Valid @RequestBody ChoreCreateRequest request,
-                                                       UriComponentsBuilder uriBuilder) {
-        Chore chore = choreService.createChore(
+                                                     UriComponentsBuilder uriBuilder) {
+        ChoreResponse chore = choreLifecycleService.createChore(
                 request.householdId(),
                 request.name(),
                 request.description(),
@@ -39,19 +40,16 @@ public class ChoreController {
                 request.requiresConfirmation());
 
         URI location = uriBuilder.path("/api/v1/chores/{id}").buildAndExpand(chore.id()).toUri();
-        return ResponseEntity.created(location).body(ChoreResponse.from(chore, true));
+        return ResponseEntity.created(location).body(chore);
     }
 
     @GetMapping
     public List<ChoreResponse> listChores(@RequestParam(required = false) UUID householdId) {
-        return choreService.listChores(householdId).stream()
-                .map(chore -> ChoreResponse.from(chore, choreService.needsAttention(chore.id())))
-                .toList();
+        return choreLifecycleService.listChores(householdId);
     }
 
     @GetMapping("/{choreId}")
     public ChoreResponse getChore(@PathVariable UUID choreId) {
-        Chore chore = choreService.getChore(choreId);
-        return ChoreResponse.from(chore, choreService.needsAttention(choreId));
+        return choreLifecycleService.getChore(choreId);
     }
 }

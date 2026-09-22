@@ -1,6 +1,6 @@
 package genius.project.orchestrate.chore.dto;
 
-import genius.project.orchestrate.chore.internal.domain.ChoreAssignment;
+import genius.project.orchestrate.chore.internal.domain.RotationSchedule;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -11,11 +11,11 @@ public record AssignmentResponse(
         int cycleNumber,
         Instant cycleStartedAt
 ) {
-    public static AssignmentResponse from(ChoreAssignment assignment) {
+    public static AssignmentResponse from(RotationSchedule schedule) {
         return new AssignmentResponse(
-                assignment.choreId(),
-                assignment.currentResponsibleUserId(),
-                assignment.cycleNumber(),
-                assignment.cycleStartedAt());
+                schedule.choreId(),
+                schedule.currentResponsible(),
+                schedule.currentCycleNumber(),
+                schedule.cycleStartedAt());
     }
 }
