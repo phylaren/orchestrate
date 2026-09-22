@@ -1,7 +1,7 @@
 package genius.project.orchestrate.chore;
 
 import genius.project.orchestrate.chore.dto.ChoreCreateRequest;
-import genius.project.orchestrate.chore.internal.domain.Chore;
+import genius.project.orchestrate.chore.dto.ChoreResponse;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,22 +33,24 @@ class ChoreControllerTest {
     private JsonMapper jsonMapper;
 
     @MockitoBean
-    private ChoreService choreService;
+    private ChoreLifecycleService choreLifecycleService;
 
     private static final UUID HOUSEHOLD_ID = UUID.randomUUID();
     private static final UUID CHORE_ID = UUID.randomUUID();
+
+    private static ChoreResponse choreResponse(UUID id, UUID householdId) {
+        return new ChoreResponse(id, householdId, "Прибирання", "Помити підлогу", 7, true, true, Instant.now());
+    }
 
     @Test
     @DisplayName("POST /api/v1/chores з валідними даними повертає 201 Created")
     void createChore_WithValidData_ReturnsCreated() throws Exception {
         ChoreCreateRequest request = new ChoreCreateRequest(
                 HOUSEHOLD_ID, "Прибирання", "Помити підлогу", 7, true);
+        ChoreResponse response = choreResponse(CHORE_ID, HOUSEHOLD_ID);
 
-        Chore chore = new Chore(
-                CHORE_ID, HOUSEHOLD_ID, "Прибирання", "Помити підлогу", 7, true, Instant.now());
-
-        when(choreService.createChore(HOUSEHOLD_ID, "Прибирання", "Помити підлогу", 7, true))
-                .thenReturn(chore);
+        when(choreLifecycleService.createChore(HOUSEHOLD_ID, "Прибирання", "Помити підлогу", 7, true))
+                .thenReturn(response);
 
         mockMvc.perform(post("/api/v1/chores")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -60,70 +62,60 @@ class ChoreControllerTest {
                 .andExpect(jsonPath("$.name").value("Прибирання"))
                 .andExpect(jsonPath("$.recurrenceDays").value(7))
                 .andExpect(jsonPath("$.requiresConfirmation").value(true))
-                // при створенні контролер завжди передає needsAttention = true
                 .andExpect(jsonPath("$.needsAttention").value(true));
 
-        verify(choreService).createChore(HOUSEHOLD_ID, "Прибирання", "Помити підлогу", 7, true);
+        verify(choreLifecycleService).createChore(HOUSEHOLD_ID, "Прибирання", "Помити підлогу", 7, true);
     }
 
     @Test
-    @DisplayName("POST /api/v1/chores без обов'язкового householdId повертає 400 Bad Request")
+    @DisplayName("POST /api/v1/chores без householdId повертає 400 Bad Request")
     void createChore_WithMissingHouseholdId_ReturnsBadRequest() throws Exception {
-        ChoreCreateRequest invalidRequest = new ChoreCreateRequest(
-                null, "Прибирання", "Помити підлогу", 7, true);
+        ChoreCreateRequest request = new ChoreCreateRequest(null, "Прибирання", "Помити підлогу", 7, true);
 
         mockMvc.perform(post("/api/v1/chores")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonMapper.writeValueAsString(invalidRequest)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     @DisplayName("POST /api/v1/chores з пустим name повертає 400 Bad Request")
     void createChore_WithBlankName_ReturnsBadRequest() throws Exception {
-        ChoreCreateRequest invalidRequest = new ChoreCreateRequest(
-                HOUSEHOLD_ID, "", "Помити підлогу", 7, true);
+        ChoreCreateRequest request = new ChoreCreateRequest(HOUSEHOLD_ID, "", "Помити підлогу", 7, true);
 
         mockMvc.perform(post("/api/v1/chores")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonMapper.writeValueAsString(invalidRequest)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    @DisplayName("GET /api/v1/chores?householdId= повертає список Chore з прапорцем needsAttention")
+    @DisplayName("GET /api/v1/chores?householdId= повертає список з needsAttention")
     void listChores_ReturnsChoresForHousehold() throws Exception {
-        Chore chore = new Chore(
-                CHORE_ID, HOUSEHOLD_ID, "Прибирання", "Помити підлогу", 7, true, Instant.now());
-
-        when(choreService.listChores(HOUSEHOLD_ID)).thenReturn(List.of(chore));
-        when(choreService.needsAttention(CHORE_ID)).thenReturn(false);
+        ChoreResponse response = choreResponse(CHORE_ID, HOUSEHOLD_ID);
+        when(choreLifecycleService.listChores(HOUSEHOLD_ID)).thenReturn(List.of(response));
 
         mockMvc.perform(get("/api/v1/chores").param("householdId", HOUSEHOLD_ID.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(CHORE_ID.toString()))
-                .andExpect(jsonPath("$[0].needsAttention").value(false));
+                .andExpect(jsonPath("$[0].needsAttention").value(true));
     }
 
     @Test
     @DisplayName("GET /api/v1/chores/{choreId} повертає конкретний Chore")
     void getChore_WithExistingId_ReturnsChore() throws Exception {
-        Chore chore = new Chore(
-                CHORE_ID, HOUSEHOLD_ID, "Прибирання", "Помити підлогу", 7, true, Instant.now());
-
-        when(choreService.getChore(CHORE_ID)).thenReturn(chore);
-        when(choreService.needsAttention(CHORE_ID)).thenReturn(true);
+        ChoreResponse response = choreResponse(CHORE_ID, HOUSEHOLD_ID);
+        when(choreLifecycleService.getChore(CHORE_ID)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/chores/{choreId}", CHORE_ID))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(CHORE_ID.toString()))
-                .andExpect(jsonPath("$.needsAttention").value(true));
+                .andExpect(jsonPath("$.id").value(CHORE_ID.toString()));
     }
 
     @Test
     @DisplayName("GET /api/v1/chores/{choreId} для неіснуючого Chore повертає 404 Not Found")
     void getChore_WithMissingId_ReturnsNotFound() throws Exception {
-        when(choreService.getChore(any(UUID.class)))
+        when(choreLifecycleService.getChore(any(UUID.class)))
                 .thenThrow(new ResourceNotFoundException("CHORE_NOT_FOUND", "Chore not found"));
 
         mockMvc.perform(get("/api/v1/chores/{choreId}", CHORE_ID))
