@@ -1,5 +1,6 @@
 package genius.project.orchestrate.swap;
 
+import genius.project.orchestrate.chore.SwapType;
 import genius.project.orchestrate.swap.dto.SwapRequestResponse;
 import genius.project.orchestrate.swap.exception.*;
 import org.junit.jupiter.api.Test;
@@ -42,14 +43,14 @@ class SwapRequestControllerTest {
     // ---------- POST /swap-requests ----------
 
     @Test
-    void should_return201_when_createSwapRequestSucceeds() throws Exception {
-        SwapRequestResponse response = response(REQUEST_ID, SwapRequestStatus.PENDING);
+    void should_return201_when_createPermanentSwapRequestSucceeds() throws Exception {
+        SwapRequestResponse response = response(REQUEST_ID, SwapRequestStatus.PENDING, SwapType.PERMANENT, null);
         when(swapRequestService.createSwapRequest(eq(CHORE_ID), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/chores/{choreId}/swap-requests", CHORE_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"receiverUserId":"%s"}
+                                {"receiverUserId":"%s","swapType":"PERMANENT"}
                                 """.formatted(RECEIVER_ID)))
                 .andExpect(status().isCreated())
                 .andExpect(header().exists("Location"))
@@ -57,7 +58,23 @@ class SwapRequestControllerTest {
                 .andExpect(jsonPath("$.choreId").value(CHORE_ID.toString()))
                 .andExpect(jsonPath("$.initiatorUserId").value(INITIATOR_ID.toString()))
                 .andExpect(jsonPath("$.receiverUserId").value(RECEIVER_ID.toString()))
-                .andExpect(jsonPath("$.status").value("PENDING"));
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.swapType").value("PERMANENT"));
+    }
+
+    @Test
+    void should_return201_when_createTemporarySwapRequestSucceeds() throws Exception {
+        SwapRequestResponse response = response(REQUEST_ID, SwapRequestStatus.PENDING, SwapType.TEMPORARY, 5);
+        when(swapRequestService.createSwapRequest(eq(CHORE_ID), any())).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/chores/{choreId}/swap-requests", CHORE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"receiverUserId":"%s","swapType":"TEMPORARY","cycleNumber":5}
+                                """.formatted(RECEIVER_ID)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.swapType").value("TEMPORARY"))
+                .andExpect(jsonPath("$.cycleNumber").value(5));
     }
 
     @Test
@@ -68,7 +85,7 @@ class SwapRequestControllerTest {
         mockMvc.perform(post("/api/v1/chores/{choreId}/swap-requests", CHORE_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"receiverUserId":"%s"}
+                                {"receiverUserId":"%s","swapType":"PERMANENT"}
                                 """.formatted(INITIATOR_ID)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
@@ -83,7 +100,7 @@ class SwapRequestControllerTest {
         mockMvc.perform(post("/api/v1/chores/{choreId}/swap-requests", CHORE_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"receiverUserId":"%s"}
+                                {"receiverUserId":"%s","swapType":"PERMANENT"}
                                 """.formatted(RECEIVER_ID)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
@@ -98,7 +115,7 @@ class SwapRequestControllerTest {
         mockMvc.perform(post("/api/v1/chores/{choreId}/swap-requests", CHORE_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"receiverUserId":"%s"}
+                                {"receiverUserId":"%s","swapType":"PERMANENT"}
                                 """.formatted(RECEIVER_ID)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
@@ -113,7 +130,7 @@ class SwapRequestControllerTest {
         mockMvc.perform(post("/api/v1/chores/{choreId}/swap-requests", CHORE_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"receiverUserId":"%s"}
+                                {"receiverUserId":"%s","swapType":"PERMANENT"}
                                 """.formatted(RECEIVER_ID)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
@@ -124,7 +141,21 @@ class SwapRequestControllerTest {
     void should_return400_when_receiverUserIdMissing() throws Exception {
         mockMvc.perform(post("/api/v1/chores/{choreId}/swap-requests", CHORE_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content("""
+                                {"swapType":"PERMANENT"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void should_return400_when_swapTypeMissing() throws Exception {
+        mockMvc.perform(post("/api/v1/chores/{choreId}/swap-requests", CHORE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"receiverUserId":"%s"}
+                                """.formatted(RECEIVER_ID)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
@@ -135,7 +166,7 @@ class SwapRequestControllerTest {
         mockMvc.perform(post("/api/v1/chores/{choreId}/swap-requests", CHORE_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"receiverUserId":"not-a-uuid"}
+                                {"receiverUserId":"not-a-uuid","swapType":"PERMANENT"}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
@@ -146,7 +177,7 @@ class SwapRequestControllerTest {
 
     @Test
     void should_return200_when_acceptSwapRequest() throws Exception {
-        SwapRequestResponse response = response(REQUEST_ID, SwapRequestStatus.ACCEPTED);
+        SwapRequestResponse response = response(REQUEST_ID, SwapRequestStatus.ACCEPTED, SwapType.PERMANENT, null);
         when(swapRequestService.respondToSwapRequest(eq(CHORE_ID), eq(REQUEST_ID), any()))
                 .thenReturn(response);
 
@@ -162,7 +193,7 @@ class SwapRequestControllerTest {
 
     @Test
     void should_return200_when_rejectSwapRequest() throws Exception {
-        SwapRequestResponse response = response(REQUEST_ID, SwapRequestStatus.REJECTED);
+        SwapRequestResponse response = response(REQUEST_ID, SwapRequestStatus.REJECTED, SwapType.PERMANENT, null);
         when(swapRequestService.respondToSwapRequest(eq(CHORE_ID), eq(REQUEST_ID), any()))
                 .thenReturn(response);
 
@@ -260,18 +291,20 @@ class SwapRequestControllerTest {
     @Test
     void should_return200WithList_when_getSwapRequests() throws Exception {
         when(swapRequestService.getSwapRequests(CHORE_ID))
-                .thenReturn(List.of(response(REQUEST_ID, SwapRequestStatus.PENDING)));
+                .thenReturn(List.of(response(REQUEST_ID, SwapRequestStatus.PENDING, SwapType.PERMANENT, null)));
 
         mockMvc.perform(get("/api/v1/chores/{choreId}/swap-requests", CHORE_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].id").value(REQUEST_ID.toString()))
-                .andExpect(jsonPath("$[0].status").value("PENDING"));
+                .andExpect(jsonPath("$[0].status").value("PENDING"))
+                .andExpect(jsonPath("$[0].swapType").value("PERMANENT"));
     }
 
     // ---------- helpers ----------
 
-    private SwapRequestResponse response(UUID id, SwapRequestStatus status) {
-        return new SwapRequestResponse(id, CHORE_ID, INITIATOR_ID, RECEIVER_ID, status, NOW);
+    private SwapRequestResponse response(UUID id, SwapRequestStatus status, SwapType type, Integer cycle) {
+        return new SwapRequestResponse(
+                id, CHORE_ID, INITIATOR_ID, RECEIVER_ID, status, type, cycle, NOW);
     }
 }

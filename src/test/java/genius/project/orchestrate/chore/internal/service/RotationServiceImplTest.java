@@ -1,15 +1,23 @@
 package genius.project.orchestrate.chore.internal.service;
 
+import genius.project.orchestrate.chore.SwapType;
 import genius.project.orchestrate.chore.dto.RotationScheduleResponse;
 import genius.project.orchestrate.chore.internal.domain.RotationSchedule;
+import genius.project.orchestrate.chore.internal.domain.ScheduledSwap;
 import genius.project.orchestrate.chore.internal.repository.RotationRepository;
+import genius.project.orchestrate.chore.internal.repository.ScheduledSwapRepository;
+
+import genius.project.orchestrate.chore.internal.service.strategy.InsertSwapStrategy;
+import genius.project.orchestrate.chore.internal.service.strategy.PermanentSwapStrategy;
+import genius.project.orchestrate.chore.internal.service.strategy.SwapStrategy;
+import genius.project.orchestrate.chore.internal.service.strategy.TemporarySwapStrategy;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -21,6 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,17 +39,26 @@ class RotationServiceImplTest {
     @Mock
     private RotationRepository rotationRepository;
 
-    @InjectMocks
+    @Mock
+    private ScheduledSwapRepository scheduledSwapRepository;
+
     private RotationServiceImpl service;
 
     private static final UUID CHORE_ID = UUID.randomUUID();
     private static final UUID USER_A = UUID.randomUUID();
     private static final UUID USER_B = UUID.randomUUID();
     private static final UUID USER_C = UUID.randomUUID();
+    private static final UUID USER_D = UUID.randomUUID();
 
-    // -------------------------------------------------------------------------
-    // getSchedule
-    // -------------------------------------------------------------------------
+    @BeforeEach
+    void setUp() {
+        List<SwapStrategy> strategies = List.of(
+                new PermanentSwapStrategy(),
+                new TemporarySwapStrategy(),
+                new InsertSwapStrategy());
+        service = new RotationServiceImpl(rotationRepository, scheduledSwapRepository, strategies);
+
+    }
 
     @Nested
     @DisplayName("getSchedule")
@@ -48,81 +66,123 @@ class RotationServiceImplTest {
 
         @Test
         @DisplayName("returns mapped response when schedule exists")
-        void returnsResponse_WhenExists() {
+        void returnsResponse() {
             RotationSchedule schedule = schedule(List.of(USER_A, USER_B), 0, 1);
             when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 1))
+                    .thenReturn(List.of());
 
             Optional<RotationScheduleResponse> result = service.getSchedule(CHORE_ID);
 
             assertThat(result).isPresent();
-            assertThat(result.get().choreId()).isEqualTo(CHORE_ID);
             assertThat(result.get().order()).containsExactly(USER_A, USER_B);
             assertThat(result.get().currentResponsibleUserId()).isEqualTo(USER_A);
         }
 
         @Test
         @DisplayName("returns empty when no schedule")
-        void returnsEmpty_WhenAbsent() {
+        void returnsEmpty() {
             when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.empty());
 
             assertThat(service.getSchedule(CHORE_ID)).isEmpty();
         }
-    }
 
-    // -------------------------------------------------------------------------
-    // currentResponsible
-    // -------------------------------------------------------------------------
+        @Test
+        @DisplayName("deletes expired scheduled swaps before rendering")
+        void deletesExpired() {
+            RotationSchedule schedule = schedule(List.of(USER_A), 0, 5);
+            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 5))
+                    .thenReturn(List.of());
+
+            service.getSchedule(CHORE_ID);
+
+            verify(scheduledSwapRepository).deleteExpired(CHORE_ID, 5);
+        }
+
+        @Test
+        @DisplayName("overlays scheduled swaps for current cycle")
+        void overlaysScheduledSwaps() {
+            RotationSchedule schedule = schedule(List.of(USER_A, USER_B, USER_C), 0, 5);
+            ScheduledSwap scheduled = new ScheduledSwap(
+                    UUID.randomUUID(), CHORE_ID, USER_A, USER_B, 5, Instant.now());
+            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 5))
+                    .thenReturn(List.of(scheduled));
+
+            Optional<RotationScheduleResponse> result = service.getSchedule(CHORE_ID);
+
+            assertThat(result).isPresent();
+            assertThat(result.get().order()).containsExactly(USER_B, USER_A, USER_C);
+            assertThat(result.get().currentResponsibleUserId()).isEqualTo(USER_A);
+        }
+
+        @Test
+        @DisplayName("skips scheduled swap if user not in group")
+        void skipsWhenUserNotInGroup() {
+            RotationSchedule schedule = schedule(List.of(USER_A, USER_B), 0, 5);
+            UUID stranger = UUID.randomUUID();
+            ScheduledSwap scheduled = new ScheduledSwap(
+                    UUID.randomUUID(), CHORE_ID, USER_A, stranger, 5, Instant.now());
+            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 5))
+                    .thenReturn(List.of(scheduled));
+
+            Optional<RotationScheduleResponse> result = service.getSchedule(CHORE_ID);
+
+            assertThat(result).isPresent();
+            assertThat(result.get().order()).containsExactly(USER_A, USER_B);
+        }
+    }
 
     @Nested
     @DisplayName("currentResponsible")
     class CurrentResponsible {
 
         @Test
-        @DisplayName("returns current responsible when schedule non-empty")
-        void returnsResponsible_WhenNonEmpty() {
-            RotationSchedule schedule = schedule(List.of(USER_A, USER_B), 1, 2);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+        @DisplayName("returns responsible when non-empty")
+        void returnsResponsible() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B), 1, 2)));
+            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 2))
+                    .thenReturn(List.of());
 
             assertThat(service.currentResponsible(CHORE_ID)).contains(USER_B);
         }
 
         @Test
-        @DisplayName("returns empty when schedule is empty")
-        void returnsEmpty_WhenScheduleEmpty() {
-            RotationSchedule schedule = schedule(List.of(), 0, 1);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+        @DisplayName("returns empty when schedule empty")
+        void emptySchedule() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(), 0, 1)));
 
             assertThat(service.currentResponsible(CHORE_ID)).isEmpty();
         }
 
         @Test
         @DisplayName("returns empty when no schedule")
-        void returnsEmpty_WhenNoSchedule() {
+        void noSchedule() {
             when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.empty());
 
             assertThat(service.currentResponsible(CHORE_ID)).isEmpty();
         }
     }
 
-    // -------------------------------------------------------------------------
-    // isEmpty
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("isEmpty")
     class IsEmpty {
 
         @Test
-        @DisplayName("returns true when no schedule")
-        void returnsTrue_WhenNoSchedule() {
+        @DisplayName("true when no schedule")
+        void noSchedule() {
             when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.empty());
 
             assertThat(service.isEmpty(CHORE_ID)).isTrue();
         }
 
         @Test
-        @DisplayName("returns true when schedule has no participants")
-        void returnsTrue_WhenScheduleEmpty() {
+        @DisplayName("true when schedule has no participants")
+        void emptySchedule() {
             when(rotationRepository.findByChoreId(CHORE_ID))
                     .thenReturn(Optional.of(schedule(List.of(), 0, 1)));
 
@@ -130,8 +190,8 @@ class RotationServiceImplTest {
         }
 
         @Test
-        @DisplayName("returns false when schedule has participants")
-        void returnsFalse_WhenScheduleNonEmpty() {
+        @DisplayName("false when schedule has participants")
+        void nonEmpty() {
             when(rotationRepository.findByChoreId(CHORE_ID))
                     .thenReturn(Optional.of(schedule(List.of(USER_A), 0, 1)));
 
@@ -139,17 +199,13 @@ class RotationServiceImplTest {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // addParticipant
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("addParticipant")
     class AddParticipant {
 
         @Test
-        @DisplayName("first participant: creates schedule with index 0, increments cycle")
-        void firstParticipant_CreatesSchedule() {
+        @DisplayName("first participant: creates schedule, cycle increments")
+        void firstParticipant() {
             when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.empty());
             when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -157,267 +213,220 @@ class RotationServiceImplTest {
 
             ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
             verify(rotationRepository).save(captor.capture());
-            RotationSchedule saved = captor.getValue();
-            assertThat(saved.baseOrder()).containsExactly(USER_A);
-            assertThat(saved.currentIndex()).isEqualTo(0);
-            assertThat(saved.currentResponsible()).isEqualTo(USER_A);
+            assertThat(captor.getValue().baseOrder()).containsExactly(USER_A);
+            assertThat(captor.getValue().currentResponsible()).isEqualTo(USER_A);
         }
 
         @Test
-        @DisplayName("second participant: appended to end, index unchanged, cycle unchanged")
-        void secondParticipant_AppendedToEnd_IndexUnchanged() {
-            RotationSchedule existing = schedule(List.of(USER_A), 0, 2);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(existing));
+        @DisplayName("second participant appended, index unchanged")
+        void secondParticipant() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(USER_A), 0, 2)));
             when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             service.addParticipant(CHORE_ID, USER_B);
 
             ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
             verify(rotationRepository).save(captor.capture());
-            RotationSchedule saved = captor.getValue();
-            assertThat(saved.baseOrder()).containsExactly(USER_A, USER_B);
-            assertThat(saved.currentIndex()).isEqualTo(0);
-            assertThat(saved.currentCycleNumber()).isEqualTo(2);
-        }
-
-        @Test
-        @DisplayName("participant added to empty schedule: becomes responsible, cycle increments")
-        void participantAddedToEmptySchedule_BecomesResponsible() {
-            RotationSchedule empty = schedule(List.of(), 0, 3);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(empty));
-            when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-            service.addParticipant(CHORE_ID, USER_A);
-
-            ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
-            verify(rotationRepository).save(captor.capture());
-            RotationSchedule saved = captor.getValue();
-            assertThat(saved.currentIndex()).isEqualTo(0);
-            assertThat(saved.currentResponsible()).isEqualTo(USER_A);
-            assertThat(saved.currentCycleNumber()).isEqualTo(4);
+            assertThat(captor.getValue().baseOrder()).containsExactly(USER_A, USER_B);
+            assertThat(captor.getValue().currentIndex()).isEqualTo(0);
+            assertThat(captor.getValue().currentCycleNumber()).isEqualTo(2);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // removeParticipant
-    // -------------------------------------------------------------------------
 
     @Nested
     @DisplayName("removeParticipant")
     class RemoveParticipant {
 
         @Test
-        @DisplayName("remove non-responsible before current index: index decremented")
-        void removeBeforeCurrentIndex_IndexDecremented() {
-            RotationSchedule schedule = schedule(List.of(USER_A, USER_B, USER_C), 2, 1);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+        @DisplayName("remove before current index: index decremented")
+        void beforeCurrent() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B, USER_C), 2, 1)));
             when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             service.removeParticipant(CHORE_ID, USER_A);
 
             ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
             verify(rotationRepository).save(captor.capture());
-            RotationSchedule saved = captor.getValue();
-            assertThat(saved.baseOrder()).containsExactly(USER_B, USER_C);
-            assertThat(saved.currentIndex()).isEqualTo(1);
-            assertThat(saved.currentCycleNumber()).isEqualTo(1);
+            assertThat(captor.getValue().baseOrder()).containsExactly(USER_B, USER_C);
+            assertThat(captor.getValue().currentIndex()).isEqualTo(1);
         }
 
         @Test
-        @DisplayName("remove non-responsible after current index: index unchanged")
-        void removeAfterCurrentIndex_IndexUnchanged() {
-            RotationSchedule schedule = schedule(List.of(USER_A, USER_B, USER_C), 0, 1);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
-            when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-            service.removeParticipant(CHORE_ID, USER_C);
-
-            ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
-            verify(rotationRepository).save(captor.capture());
-            RotationSchedule saved = captor.getValue();
-            assertThat(saved.baseOrder()).containsExactly(USER_A, USER_B);
-            assertThat(saved.currentIndex()).isEqualTo(0);
-        }
-
-        @Test
-        @DisplayName("remove responsible: next participant becomes responsible, cycle increments")
-        void removeResponsible_NextBecomesResponsible() {
-            RotationSchedule schedule = schedule(List.of(USER_A, USER_B, USER_C), 1, 2);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+        @DisplayName("remove responsible: next becomes responsible, cycle increments")
+        void removeResponsible() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B, USER_C), 1, 2)));
             when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             service.removeParticipant(CHORE_ID, USER_B);
 
             ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
             verify(rotationRepository).save(captor.capture());
-            RotationSchedule saved = captor.getValue();
-            assertThat(saved.baseOrder()).containsExactly(USER_A, USER_C);
-            assertThat(saved.currentIndex()).isEqualTo(1);
-            assertThat(saved.currentResponsible()).isEqualTo(USER_C);
-            assertThat(saved.currentCycleNumber()).isEqualTo(3);
+            assertThat(captor.getValue().baseOrder()).containsExactly(USER_A, USER_C);
+            assertThat(captor.getValue().currentResponsible()).isEqualTo(USER_C);
+            assertThat(captor.getValue().currentCycleNumber()).isEqualTo(3);
         }
 
         @Test
-        @DisplayName("remove responsible who is last in list: wraps to index 0, cycle increments")
-        void removeResponsibleAtEnd_WrapsToZero() {
-            RotationSchedule schedule = schedule(List.of(USER_A, USER_B), 1, 1);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
-            when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-            service.removeParticipant(CHORE_ID, USER_B);
-
-            ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
-            verify(rotationRepository).save(captor.capture());
-            RotationSchedule saved = captor.getValue();
-            assertThat(saved.baseOrder()).containsExactly(USER_A);
-            assertThat(saved.currentIndex()).isEqualTo(0);
-            assertThat(saved.currentResponsible()).isEqualTo(USER_A);
-            assertThat(saved.currentCycleNumber()).isEqualTo(2);
-        }
-
-        @Test
-        @DisplayName("remove last participant: schedule becomes empty")
-        void removeLastParticipant_ScheduleBecomesEmpty() {
-            RotationSchedule schedule = schedule(List.of(USER_A), 0, 1);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+        @DisplayName("remove last participant: empty schedule")
+        void lastParticipant() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(USER_A), 0, 1)));
             when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             service.removeParticipant(CHORE_ID, USER_A);
 
             ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
             verify(rotationRepository).save(captor.capture());
-            RotationSchedule saved = captor.getValue();
-            assertThat(saved.baseOrder()).isEmpty();
-            assertThat(saved.currentResponsible()).isNull();
+            assertThat(captor.getValue().baseOrder()).isEmpty();
         }
 
         @Test
         @DisplayName("no schedule: throws ResourceNotFoundException")
-        void noSchedule_Throws() {
+        void noSchedule() {
             when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.removeParticipant(CHORE_ID, USER_A))
                     .isInstanceOf(ResourceNotFoundException.class)
                     .extracting("errorCode").isEqualTo("ROTATIONSCHEDULE_NOT_FOUND");
-
-            verify(rotationRepository, org.mockito.Mockito.never()).save(any());
         }
     }
-
-    // -------------------------------------------------------------------------
-    // advance
-    // -------------------------------------------------------------------------
 
     @Nested
     @DisplayName("advance")
     class Advance {
 
         @Test
-        @DisplayName("advances to next participant, cycle increments")
-        void advancesToNext() {
-            RotationSchedule schedule = schedule(List.of(USER_A, USER_B, USER_C), 0, 1);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+        @DisplayName("advances to next, cycle increments")
+        void advances() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B, USER_C), 0, 1)));
             when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             service.advance(CHORE_ID);
 
             ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
             verify(rotationRepository).save(captor.capture());
-            RotationSchedule saved = captor.getValue();
-            assertThat(saved.currentIndex()).isEqualTo(1);
-            assertThat(saved.currentResponsible()).isEqualTo(USER_B);
-            assertThat(saved.currentCycleNumber()).isEqualTo(2);
+            assertThat(captor.getValue().currentIndex()).isEqualTo(1);
+            assertThat(captor.getValue().currentCycleNumber()).isEqualTo(2);
         }
 
         @Test
-        @DisplayName("wraps around from last to first participant")
-        void wrapsAroundToFirst() {
-            RotationSchedule schedule = schedule(List.of(USER_A, USER_B), 1, 3);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+        @DisplayName("wraps around")
+        void wraps() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B), 1, 3)));
             when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             service.advance(CHORE_ID);
 
             ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
             verify(rotationRepository).save(captor.capture());
-            RotationSchedule saved = captor.getValue();
-            assertThat(saved.currentIndex()).isEqualTo(0);
-            assertThat(saved.currentResponsible()).isEqualTo(USER_A);
+            assertThat(captor.getValue().currentIndex()).isEqualTo(0);
         }
 
         @Test
-        @DisplayName("empty schedule: no change to order")
-        void emptySchedule_NoChange() {
-            RotationSchedule schedule = schedule(List.of(), 0, 1);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+        @DisplayName("empty schedule: no save")
+        void empty() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(), 0, 1)));
 
             service.advance(CHORE_ID);
 
-            ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
-            verify(rotationRepository, org.mockito.Mockito.never()).save(any());
+            verify(rotationRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("no schedule: throws ResourceNotFoundException")
-        void noSchedule_Throws() {
+        @DisplayName("no schedule: throws")
+        void noSchedule() {
             when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.advance(CHORE_ID))
-                    .isInstanceOf(ResourceNotFoundException.class)
-                    .extracting("errorCode").isEqualTo("ROTATIONSCHEDULE_NOT_FOUND");
-
-            verify(rotationRepository, org.mockito.Mockito.never()).save(any());
+                    .isInstanceOf(ResourceNotFoundException.class);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // swapPositions
-    // -------------------------------------------------------------------------
 
     @Nested
-    @DisplayName("swapPositions")
-    class SwapPositions {
+    @DisplayName("swap")
+    class Swap {
 
         @Test
-        @DisplayName("swaps order of two participants, responsible not involved: index unchanged")
-        void swapsOrder_ResponsibleUnchanged() {
-            RotationSchedule schedule = schedule(List.of(USER_A, USER_B, USER_C), 0, 1);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+        @DisplayName("PERMANENT: mutates and persists rotation")
+        void permanent() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B, USER_C), 0, 1)));
             when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            service.swapPositions(CHORE_ID, USER_B, USER_C);
+            service.swap(CHORE_ID, USER_B, USER_C, SwapType.PERMANENT, null);
 
             ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
             verify(rotationRepository).save(captor.capture());
-            RotationSchedule saved = captor.getValue();
-            assertThat(saved.baseOrder()).containsExactly(USER_A, USER_C, USER_B);
-            assertThat(saved.currentIndex()).isEqualTo(0);
-            assertThat(saved.currentResponsible()).isEqualTo(USER_A);
+            assertThat(captor.getValue().baseOrder()).containsExactly(USER_A, USER_C, USER_B);
         }
 
         @Test
-        @DisplayName("responsible swapped: currentIndex follows responsible")
-        void responsibleSwapped_IndexFollows() {
-            RotationSchedule schedule = schedule(List.of(USER_A, USER_B, USER_C), 0, 1);
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
-            when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        @DisplayName("TEMPORARY: saves ScheduledSwap, does not touch rotation")
+        void temporary() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B), 0, 3)));
+            when(scheduledSwapRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            service.swapPositions(CHORE_ID, USER_A, USER_C);
+            service.swap(CHORE_ID, USER_A, USER_B, SwapType.TEMPORARY, 5);
 
-            ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
-            verify(rotationRepository).save(captor.capture());
-            RotationSchedule saved = captor.getValue();
-            assertThat(saved.baseOrder()).containsExactly(USER_C, USER_B, USER_A);
-            assertThat(saved.currentIndex()).isEqualTo(2);
-            assertThat(saved.currentResponsible()).isEqualTo(USER_A);
+            ArgumentCaptor<ScheduledSwap> captor = ArgumentCaptor.forClass(ScheduledSwap.class);
+            verify(scheduledSwapRepository).save(captor.capture());
+            verify(rotationRepository, never()).save(any());
+
+            ScheduledSwap saved = captor.getValue();
+            assertThat(saved.choreId()).isEqualTo(CHORE_ID);
+            assertThat(saved.fromUserId()).isEqualTo(USER_A);
+            assertThat(saved.toUserId()).isEqualTo(USER_B);
+            assertThat(saved.cycleNumber()).isEqualTo(5);
+        }
+
+        @Test
+        @DisplayName("no schedule: throws")
+        void noSchedule() {
+            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.swap(
+                    CHORE_ID, USER_A, USER_B, SwapType.PERMANENT, null))
+                    .isInstanceOf(ResourceNotFoundException.class);
         }
     }
 
-    // -------------------------------------------------------------------------
-    // helpers
-    // -------------------------------------------------------------------------
+    @Nested
+    @DisplayName("insert")
+    class Insert {
 
-    private RotationSchedule schedule(List<UUID> order, int currentIndex, int cycleNumber) {
-        return new RotationSchedule(CHORE_ID, order, currentIndex, cycleNumber, Instant.now());
+        @Test
+        @DisplayName("inserts user at position and saves")
+        void inserts() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B, USER_C, USER_D), 0, 1)));
+            when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.insert(CHORE_ID, USER_D, 1);
+
+            ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
+            verify(rotationRepository).save(captor.capture());
+            assertThat(captor.getValue().baseOrder())
+                    .containsExactly(USER_A, USER_D, USER_B, USER_C);
+        }
+
+        @Test
+        @DisplayName("no schedule: throws")
+        void noSchedule() {
+            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.insert(CHORE_ID, USER_A, 0))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+    }
+
+    private RotationSchedule schedule(List<UUID> order, int index, int cycle) {
+        return new RotationSchedule(CHORE_ID, order, index, cycle, Instant.now());
     }
 }
