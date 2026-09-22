@@ -18,6 +18,4 @@ public interface ChoreParticipantService {
     boolean isParticipant(UUID choreId, UUID userId);
 
     Optional<AssignmentResponse> getCurrentAssignment(UUID choreId);
-
-    void swapTurns(UUID choreId, UUID fromUserId, UUID toUserId);
 }

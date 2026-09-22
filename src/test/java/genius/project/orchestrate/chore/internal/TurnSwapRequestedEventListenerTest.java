@@ -1,7 +1,8 @@
 package genius.project.orchestrate.chore.internal;
 
+import genius.project.orchestrate.chore.RotationService;
+import genius.project.orchestrate.chore.SwapType;
 import genius.project.orchestrate.chore.TurnSwapRequestedEvent;
-import genius.project.orchestrate.chore.client.ChoreClient;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,20 +18,32 @@ import static org.mockito.Mockito.verify;
 class TurnSwapRequestedEventListenerTest {
 
     @Mock
-    private ChoreClient choreClient;
+    private RotationService rotationService;
 
     @InjectMocks
     private TurnSwapRequestedEventListener listener;
 
     @Test
-    @DisplayName("on TurnSwapRequestedEvent: delegates to choreClient.swapTurns with correct args")
-    void onEvent_DelegatesToChoreClient() {
+    @DisplayName("PERMANENT: delegates to rotationService.swap without cycleNumber")
+    void permanent() {
         UUID choreId = UUID.randomUUID();
         UUID from = UUID.randomUUID();
         UUID to = UUID.randomUUID();
 
-        listener.on(new TurnSwapRequestedEvent(choreId, from, to));
+        listener.on(new TurnSwapRequestedEvent(choreId, from, to, SwapType.PERMANENT, null));
 
-        verify(choreClient).swapTurns(choreId, from, to);
+        verify(rotationService).swap(choreId, from, to, SwapType.PERMANENT, null);
+    }
+
+    @Test
+    @DisplayName("TEMPORARY: delegates with cycleNumber")
+    void temporary() {
+        UUID choreId = UUID.randomUUID();
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+
+        listener.on(new TurnSwapRequestedEvent(choreId, from, to, SwapType.TEMPORARY, 7));
+
+        verify(rotationService).swap(choreId, from, to, SwapType.TEMPORARY, 7);
     }
 }
