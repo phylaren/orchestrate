@@ -5,11 +5,8 @@ import genius.project.orchestrate.chore.dto.AssignmentResponse;
 import genius.project.orchestrate.chore.dto.ParticipantResponse;
 import genius.project.orchestrate.chore.dto.RotationScheduleResponse;
 import genius.project.orchestrate.chore.internal.domain.Chore;
-import genius.project.orchestrate.chore.internal.domain.ChoreParticipant;
-import genius.project.orchestrate.chore.internal.domain.RotationSchedule;
 import genius.project.orchestrate.chore.internal.repository.ChoreParticipantStore;
 import genius.project.orchestrate.chore.internal.repository.ChoreStore;
-import genius.project.orchestrate.chore.internal.repository.RotationRepository;
 import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.DisplayName;
@@ -38,7 +35,6 @@ class ChoreParticipantServiceImplTest {
     @Mock private ChoreStore choreStore;
     @Mock private ChoreParticipantStore participantStore;
     @Mock private RotationService rotationService;
-    @Mock private RotationRepository rotationRepository;
 
     @InjectMocks
     private ChoreParticipantServiceImpl service;
@@ -162,10 +158,11 @@ class ChoreParticipantServiceImplTest {
         @Test
         @DisplayName("returns assignment when non-empty")
         void returnsAssignment() {
-            RotationSchedule schedule = new RotationSchedule(
-                    CHORE_ID, List.of(USER_A, USER_B), 0, 3, Instant.now());
+            AssignmentResponse assignment = new AssignmentResponse(
+                    CHORE_ID, USER_A, 3, Instant.now());
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore()));
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+            when(rotationService.getCurrentAssignment(CHORE_ID))
+                    .thenReturn(Optional.of(assignment));
 
             Optional<AssignmentResponse> result = service.getCurrentAssignment(CHORE_ID);
 
@@ -176,10 +173,8 @@ class ChoreParticipantServiceImplTest {
         @Test
         @DisplayName("returns empty when schedule empty")
         void empty() {
-            RotationSchedule schedule = new RotationSchedule(
-                    CHORE_ID, List.of(), 0, 1, Instant.now());
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore()));
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
+            when(rotationService.getCurrentAssignment(CHORE_ID)).thenReturn(Optional.empty());
 
             assertThat(service.getCurrentAssignment(CHORE_ID)).isEmpty();
         }
