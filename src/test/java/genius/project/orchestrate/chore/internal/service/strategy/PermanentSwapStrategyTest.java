@@ -1,12 +1,9 @@
-package genius.project.orchestrate.chore.internal.service.handler;
+package genius.project.orchestrate.chore.internal.service.strategy;
 
 import genius.project.orchestrate.chore.SwapType;
 import genius.project.orchestrate.chore.exception.SameUserSwapException;
 import genius.project.orchestrate.chore.exception.UserNotInRotationException;
 import genius.project.orchestrate.chore.internal.domain.RotationSchedule;
-import genius.project.orchestrate.chore.internal.service.strategy.PermanentSwapStrategy;
-import genius.project.orchestrate.chore.internal.service.strategy.SwapCommand;
-import genius.project.orchestrate.chore.internal.service.strategy.SwapOutcome;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -37,8 +34,7 @@ class PermanentSwapStrategyTest {
     void swapUsers_ResponsibleUnchanged() {
         RotationSchedule current = schedule(List.of(USER_A, USER_B, USER_C), 0, 1);
 
-        SwapOutcome outcome = strategy.execute(current,
-                new SwapCommand.Swap(USER_B, USER_C, null));
+        SwapOutcome outcome = strategy.execute(current, USER_B, USER_C, null);
 
         RotationSchedule result = ((SwapOutcome.ApplyNow) outcome).schedule();
         assertThat(result.baseOrder()).containsExactly(USER_A, USER_C, USER_B);
@@ -51,22 +47,21 @@ class PermanentSwapStrategyTest {
     void responsibleSwapped_IndexFollows() {
         RotationSchedule current = schedule(List.of(USER_A, USER_B, USER_C), 0, 1);
 
-        SwapOutcome outcome = strategy.execute(current,
-                new SwapCommand.Swap(USER_A, USER_C, null));
+        SwapOutcome outcome = strategy.execute(current, USER_A, USER_C, null);
 
         RotationSchedule result = ((SwapOutcome.ApplyNow) outcome).schedule();
         assertThat(result.baseOrder()).containsExactly(USER_C, USER_B, USER_A);
         assertThat(result.currentIndex()).isEqualTo(2);
         assertThat(result.currentResponsible()).isEqualTo(USER_A);
     }
+
     @Test
     @DisplayName("user not in group: throws")
     void userNotInGroup_Throws() {
         RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 1);
         UUID stranger = UUID.randomUUID();
 
-        assertThatThrownBy(() -> strategy.execute(current,
-                new SwapCommand.Swap(USER_A, stranger, null)))
+        assertThatThrownBy(() -> strategy.execute(current, USER_A, stranger, null))
                 .isInstanceOf(UserNotInRotationException.class)
                 .extracting("errorCode").isEqualTo("USER_NOT_IN_ROTATION");
     }
@@ -76,10 +71,20 @@ class PermanentSwapStrategyTest {
     void sameUser_Throws() {
         RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 1);
 
-        assertThatThrownBy(() -> strategy.execute(current,
-                new SwapCommand.Swap(USER_A, USER_A, null)))
+        assertThatThrownBy(() -> strategy.execute(current, USER_A, USER_A, null))
                 .isInstanceOf(SameUserSwapException.class)
                 .extracting("errorCode").isEqualTo("SAME_USER_SWAP");
+    }
+
+    @Test
+    @DisplayName("from user not in group: throws")
+    void fromUserNotInGroup_Throws() {
+        RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 1);
+        UUID stranger = UUID.randomUUID();
+
+        assertThatThrownBy(() -> strategy.execute(current, stranger, USER_A, null))
+                .isInstanceOf(UserNotInRotationException.class)
+                .extracting("errorCode").isEqualTo("USER_NOT_IN_ROTATION");
     }
 
     private RotationSchedule schedule(List<UUID> order, int index, int cycle) {

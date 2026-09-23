@@ -17,7 +17,7 @@ public record RotationScheduleResponse(
         return new RotationScheduleResponse(
                 schedule.choreId(),
                 List.copyOf(schedule.baseOrder()),
-                schedule.currentResponsible(),
+                schedule.isEmpty() ? null : schedule.currentResponsible(),
                 schedule.currentCycleNumber(),
                 schedule.cycleStartedAt());
     }

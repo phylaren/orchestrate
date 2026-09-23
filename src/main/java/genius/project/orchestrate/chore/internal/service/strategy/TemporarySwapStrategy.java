@@ -5,7 +5,7 @@ import genius.project.orchestrate.chore.exception.SameUserSwapException;
 import genius.project.orchestrate.chore.exception.UserNotInRotationException;
 import genius.project.orchestrate.chore.internal.domain.RotationSchedule;
 import genius.project.orchestrate.chore.internal.domain.ScheduledSwap;
-import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
+import genius.project.orchestrate.common.exception.InvalidCycleNumberException;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -20,16 +20,18 @@ public class TemporarySwapStrategy implements SwapStrategy {
     }
 
     @Override
-    public SwapOutcome execute(RotationSchedule current, SwapCommand command) {
-        var swap = (SwapCommand.Swap) command;
-        validate(current, swap.fromUserId(), swap.toUserId(), swap.cycleNumber());
+    public SwapOutcome execute(RotationSchedule current,
+                               UUID fromUserId,
+                               UUID toUserId,
+                               Integer cycleNumber) {
+        validate(current, fromUserId, toUserId, cycleNumber);
 
         ScheduledSwap scheduled = new ScheduledSwap(
                 null,
                 current.choreId(),
-                swap.fromUserId(),
-                swap.toUserId(),
-                swap.cycleNumber(),
+                fromUserId,
+                toUserId,
+                cycleNumber,
                 Instant.now());
 
         return new SwapOutcome.ScheduleForCycle(scheduled);
@@ -37,9 +39,10 @@ public class TemporarySwapStrategy implements SwapStrategy {
 
     private void validate(RotationSchedule current, UUID from, UUID to, Integer cycleNumber) {
         if (cycleNumber == null) {
-            throw new BusinessRuleViolationException(
-                    "MISSING_CYCLE_NUMBER",
-                    "TEMPORARY swap requires a cycle number.");
+            throw InvalidCycleNumberException.missing();
+        }
+        if (cycleNumber <= current.currentCycleNumber()) {
+            throw InvalidCycleNumberException.inPast(cycleNumber, current.currentCycleNumber());
         }
         if (from.equals(to)) {
             throw new SameUserSwapException(from);

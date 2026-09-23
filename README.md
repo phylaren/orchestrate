@@ -8,7 +8,7 @@
 
 - [`ConfirmationStatus`](#1-confirmationstatus--підтвердження-виконання) — статус підтвердження виконання обов'язку;
 - [`SwapRequestStatus`](#2-swaprequeststatus--запит-на-обмін-чергою) — статус запиту на обмін чергою;
-- [`Swap strategies`](#3-swap-strategies--стратегії-обміну-чергою) — патерн Strategy для варіантів обміну (PERMANENT / TEMPORARY / INSERT).
+- [`Swap strategies`](#3-swap-strategies--стратегії-обміну-чергою) — патерн Strategy для варіантів обміну (`PERMANENT` / `TEMPORARY`);
 - [`Household і User`](#4-household-і-user--домогосподарства-членство-права) — домогосподарства, членство, права учасників і коди запрошення.
 
 ## Зміст
@@ -167,13 +167,21 @@ stateDiagram-v2
 | BR-S6 | Відповісти можна лише на запит у стані `PENDING`; `ACCEPTED` і `REJECTED` незмінні. |
 | BR-S7 | Тільки перехід `PENDING → ACCEPTED` змінює чергу й публікує подію. Невдала спроба (`422`) подій не породжує. |
 
-
 ---
 
 ## 3. Swap strategies — стратегії обміну чергою
 
-Обмін чергою (ротацією) реалізовано патерном **Strategy**: різні алгоритми (`PERMANENT`, `TEMPORARY`, `INSERT`)
+Обмін чергою (ротацією) реалізовано патерном **Strategy**: алгоритми `PERMANENT` і `TEMPORARY`
 винесені в окремі класи, а `RotationServiceImpl` обирає потрібну стратегію за `SwapType` без `if/else` і без `@Qualifier`.
+
+`SwapType` містить лише два значення:
+
+```java
+public enum SwapType {
+    PERMANENT,
+    TEMPORARY
+}
+```
 
 ### Як зібрано стратегії
 
@@ -197,52 +205,54 @@ RotationServiceImpl(RotationRepository rotationRepository,
 
 | Тип | Призначення |
 |---|---|
-| `SwapStrategy` | Інтерфейс: `getSwapType()`, `execute(RotationSchedule, SwapCommand)` |
-| `SwapCommand` (sealed) | `Swap(from, to, cycleNumber)` або `Insert(userId, position)` |
+| `SwapStrategy` | Інтерфейс: `getSwapType()`, `execute(RotationSchedule current, UUID fromUserId, UUID toUserId, Integer cycleNumber)` |
 | `SwapOutcome` (sealed) | `ApplyNow(schedule)` — одразу змінити ротацію; `ScheduleForCycle(scheduled)` — відкласти на цикл |
+
+Логіка «поміняти двох учасників місцями» живе в домені: `RotationSchedule.swapParticipants(a, b)`.
+Саме там перевіряються `SAME_USER_SWAP` і `USER_NOT_IN_ROTATION` (для `PERMANENT`); `TemporarySwapStrategy`
+дублює ці перевірки у своєму `validate`, бо не викликає `swapParticipants` одразу.
 
 ### Стратегії
 
 | Стратегія | `SwapType` | Що робить | Результат |
 |---|---|---|---|
-| `PermanentSwapStrategy` | `PERMANENT` | Міняє двох учасників місцями в `baseOrder`; якщо відповідальний серед них — `currentIndex` слідує за ним | `ApplyNow` |
-| `TemporarySwapStrategy` | `TEMPORARY` | Не чіпає поточну ротацію; зберігає `ScheduledSwap` на вказаний `cycleNumber` (обмін застосується при вході в цей цикл) | `ScheduleForCycle` |
-| `InsertSwapStrategy` | `INSERT` | Переміщує учасника на задану позицію в `baseOrder`; якщо переміщується поточний відповідальний — цикл інкрементується, відповідальним стає наступний | `ApplyNow` |
+| `PermanentSwapStrategy` | `PERMANENT` | Викликає `current.swapParticipants(from, to)`: міняє двох у `baseOrder`; якщо відповідальний серед них — `currentIndex` слідує за ним; цикл не змінюється | `ApplyNow` |
+| `TemporarySwapStrategy` | `TEMPORARY` | Не чіпає поточну ротацію; зберігає `ScheduledSwap` на вказаний `cycleNumber` (обмін застосується при `advance` у цей цикл) | `ScheduleForCycle` |
 
 ### Бізнес-правила стратегій
 
 | № | Правило |
 |---|---|
-| BR-R1 | `PERMANENT` / `TEMPORARY`: ініціатор і отримувач — різні люди (`SAME_USER_SWAP`); обидва мають бути в ротації (`USER_NOT_IN_ROTATION`). |
-| BR-R2 | `TEMPORARY` вимагає `cycleNumber` (`MISSING_CYCLE_NUMBER`); створення запиту додатково перевіряє, що цикл не в минулому і не занадто далеко (`CYCLE_IN_PAST`, `CYCLE_TOO_FAR`). |
-| BR-R3 | `INSERT`: користувач має бути в ротації; позиція в межах `[0, size)` (`POSITION_OUT_OF_BOUNDS`). Якщо користувач уже на цій позиції — no-op. |
-| BR-R4 | `INSERT` через API заборонений для «самого себе» (`INSERT_SELF_NOT_ALLOWED`, HTTP 403) — перевірка на рівні контролера. |
-| BR-R5 | `INSERT` не створюється через `SwapRequest` (`INSERT_NOT_SWAP_REQUEST`); лише через `POST .../rotation/insert`. |
-| BR-R6 | Після `PENDING → ACCEPTED` у модулі `swap` публікується `TurnSwapRequestedEvent`; слухач у модулі `chore` (`@ApplicationModuleListener`) викликає `RotationService.swap(...)`, який делегує відповідній стратегії. |
+| BR-R1 | Ініціатор і отримувач — різні люди (`SAME_USER_SWAP`); обидва мають бути в ротації (`USER_NOT_IN_ROTATION`). Для `PERMANENT` перевірка в `RotationSchedule.swapParticipants`; для `TEMPORARY` — у `TemporarySwapStrategy.validate`. |
+| BR-R2 | `TEMPORARY` вимагає `cycleNumber` (`MISSING_CYCLE_NUMBER`). Створення `SwapRequest` додатково перевіряє, що цикл у майбутньому і не далі ніж `MAX_CYCLE_LOOKAHEAD` (10) циклів (`CYCLE_IN_PAST`, `CYCLE_TOO_FAR`) у `SwapRequestServiceImpl.resolveCycleNumber`. Стратегія сама перевіряє лише `null` і «цикл не в минулому». |
+| BR-R3 | Після `PENDING → ACCEPTED` у модулі `swap` публікується `TurnSwapRequestedEvent`; слухач у модулі `chore` (`@ApplicationModuleListener`) викликає `RotationService.swap(...)`, який делегує відповідній стратегії. Невідомий `SwapType` → `UNSUPPORTED_SWAP_TYPE`. |
+| BR-R4 | Відкладені обміни застосовуються в `RotationServiceImpl.advance`: перед збереженням нового циклу викликається `applyScheduledSwaps`, потім `deleteExpired` прибирає спожиті й застарілі `ScheduledSwap`. |
 
 ### Потік для обміну через запит
 
 ```
-POST /swap-requests          → SwapRequestService (статус PENDING)
+POST /swap-requests          → SwapRequestService (статус PENDING; resolveCycleNumber для TEMPORARY)
 PATCH ... status=ACCEPTED    → canTransitionTo + publish TurnSwapRequestedEvent
                                  ↓
 @ApplicationModuleListener   → RotationService.swap(type=PERMANENT|TEMPORARY)
                                  ↓
 Map<SwapType, SwapStrategy>  → PermanentSwapStrategy | TemporarySwapStrategy
+                                 ↓
+SwapOutcome                  → ApplyNow → save schedule
+                             → ScheduleForCycle → save ScheduledSwap
 ```
 
 ### Де що лежить
 
 | Що | Де |
 |---|---|
-| `SwapStrategy`, `SwapCommand`, `SwapOutcome` | `chore/internal/service/strategy/` |
+| `SwapStrategy`, `SwapOutcome` | `chore/internal/service/strategy/` |
 | `PermanentSwapStrategy` | `.../PermanentSwapStrategy.java` |
 | `TemporarySwapStrategy` | `.../TemporarySwapStrategy.java` |
-| `InsertSwapStrategy` | `.../InsertSwapStrategy.java` |
-| Спільна операція «поміняти двох» | `.../SwapTwoUsersOp.java` |
-| Вибір стратегії | `RotationServiceImpl.swap` / `insert` |
-| Тести стратегій | `chore/internal/service/handler/*SwapStrategyTest` |
-
+| `RotationSchedule.swapParticipants` | `chore/internal/domain/RotationSchedule.java` |
+| Вибір стратегії | `RotationServiceImpl.swap` |
+| Застосування відкладених обмінів | `RotationServiceImpl.advance` / `applyScheduledSwaps` |
+| Тести стратегій | `chore/internal/service/strategy/*SwapStrategyTest` |
 
 ---
 
@@ -323,6 +333,10 @@ Map<SwapType, SwapStrategy>  → PermanentSwapStrategy | TemporarySwapStrategy
 | Дубль запиту `PENDING` | `DuplicateSwapRequestException` | `SWAP_REQUEST_ALREADY_EXISTS` | 409 |
 | Ініціатор = отримувач | `InvalidSwapRequestRecipientException` | `INVALID_SWAP_REQUEST_RECIPIENT` | 400 |
 | Хтось із сторін не є учасником обов'язку | `NotChoreParticipantException` | `NOT_CHORE_PARTICIPANT` | 400 |
+| Той самий користувач в обміні | `SameUserSwapException` | `SAME_USER_SWAP` | 400 |
+| Користувач не в ротації | `UserNotInRotationException` | `USER_NOT_IN_ROTATION` | 400 |
+| Немає / минулий / занадто далекий `cycleNumber` | `InvalidCycleNumberException` | `MISSING_CYCLE_NUMBER` / `CYCLE_IN_PAST` / `CYCLE_TOO_FAR` | 400 |
+| Непідтримуваний `SwapType` | `BusinessRuleViolationException` | `UNSUPPORTED_SWAP_TYPE` | 409 |
 
 Приклад відповіді на недозволений перехід:
 
@@ -345,7 +359,7 @@ Content-Type: application/problem+json
 
 Порядок важливий: автомат перевіряється **після** пошуку та перевірки прав і **до** збереження й побічних ефектів.
 
-`ChoreService.decideConfirmation`:
+`ChoreCompletionService.decideConfirmation`:
 
 1. Обов'язок існує (`404`).
 2. Запис виконання існує й належить цьому обов'язку (`404`).
@@ -372,7 +386,7 @@ Content-Type: application/problem+json
 | Що | Де |
 |---|---|
 | `ConfirmationStatus` і `canTransitionTo` | `chore/ConfirmationStatus.java` |
-| Guard для `ConfirmationStatus` | `chore/internal/ChoreServiceImpl.java` → `decideConfirmation` |
+| Guard для `ConfirmationStatus` | `chore/internal/service/ChoreCompletionServiceImpl.java` → `decideConfirmation` |
 | Виняток `InvalidConfirmationStatusException` | `chore/exception/InvalidConfirmationStatusException.java` |
 | `SwapRequestStatus` і `canTransitionTo` | `swap/SwapRequestStatus.java` |
 | Guard для `SwapRequestStatus` | `swap/internal/SwapRequestServiceImpl.java` → `respondToSwapRequest` |
@@ -381,6 +395,7 @@ Content-Type: application/problem+json
 | Відображення в HTTP 422 | `common/exception/GlobalExceptionHandler.java` → `handleInvalidStateTransition` |
 | `SwapStrategy` + реалізації | `chore/internal/service/strategy/` |
 | Збір стратегій без `@Qualifier` | `RotationServiceImpl` конструктор (`List<SwapStrategy>`) |
+| `RotationSchedule.swapParticipants` | `chore/internal/domain/RotationSchedule.java` |
 | Слухач події обміну | `chore/internal/TurnSwapRequestedEventListener` (`@ApplicationModuleListener`) |
 
 Реалізація `canTransitionTo` (на прикладі `SwapRequestStatus`):
@@ -415,13 +430,12 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 |---|---|
 | `chore/ConfirmationStatusTest` | Усі 16 пар `ConfirmationStatus × ConfirmationStatus` збігаються з матрицею вище; матриця охоплює всі значення enum'а; перехід у `null` заборонений |
 | `swap/SwapRequestStatusTest` | Те саме для 9 пар `SwapRequestStatus × SwapRequestStatus` |
-| `chore/internal/ChoreServiceImplTest` → `DecideConfirmation` | Guard у сервісі: `CONFIRMED`, `REJECTED`, `NOT_REQUIRED` не можна розглянути повторно; після відмови нічого не зберігається і ротація не рухається |
+| `chore/internal/service/ChoreCompletionServiceImplTest` → `DecideConfirmation` | Guard у сервісі: `CONFIRMED`, `REJECTED`, `NOT_REQUIRED` не можна розглянути повторно; після відмови нічого не зберігається і ротація не рухається |
 | `swap/internal/SwapRequestServiceImplTest` → `RespondToSwapRequest` | Guard у сервісі: з кінцевих станів і з `PENDING` у `PENDING` — виняток; подія не публікується |
 | `chore/ChoreCompletionControllerTest`, `swap/SwapRequestControllerTest` | Недозволений перехід повертає `422` і `code` у `ProblemDetail` |
-| `chore/internal/service/handler/PermanentSwapStrategyTest` | PERMANENT: swap двох, index слідує за відповідальним, same-user / not-in-group |
-| `chore/internal/service/handler/TemporarySwapStrategyTest` | TEMPORARY: ScheduleForCycle, MISSING_CYCLE_NUMBER, same-user, not-in-group |
-| `chore/internal/service/handler/InsertSwapStrategyTest` | INSERT: зсув, відповідальний рухається → цикл++, position OOB, already-at-position |
-| `chore/internal/service/RotationServiceImplTest` | Делегування стратегіям, apply ScheduledSwap |
+| `chore/internal/service/strategy/PermanentSwapStrategyTest` | PERMANENT: swap двох, index слідує за відповідальним, same-user / not-in-group |
+| `chore/internal/service/strategy/TemporarySwapStrategyTest` | TEMPORARY: ScheduleForCycle, MISSING_CYCLE_NUMBER, CYCLE_IN_PAST, same-user, not-in-group |
+| `chore/internal/service/RotationServiceImplTest` | Делегування стратегіям, apply ScheduledSwap при `advance` |
 
 Матриці в тестах і в цьому файлі мають збігатися: якщо змінюєте одну — змінюйте й іншу.
 
@@ -433,6 +447,13 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 2. Опишіть у `canTransitionTo`, куди можна перейти з нового стану і які стани ведуть у нього.
 3. Оновіть матрицю й діаграму в цьому файлі та матрицю `ALLOWED` у відповідному `*StatusTest`.
 4. Якщо змінилися побічні ефекти переходу — оновіть таблицю «Як виникають статуси» і порядок перевірок у сервісі.
+
+Щоб додати нову стратегію обміну:
+
+1. Додайте значення в `SwapType`.
+2. Реалізуйте `SwapStrategy` як `@Component` з `getSwapType()` і `execute(...)`.
+3. Оновіть цей README (таблиця стратегій, бізнес-правила, тести).
+4. Spring підхопить нову стратегію через `List<SwapStrategy>` — змін у `RotationServiceImpl` не потрібно.
 
 ---
 
@@ -456,4 +477,3 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
   прийняттям запиту), запит залишиться `ACCEPTED` без компенсації. Крім того, слухач події позначений
   `@ApplicationModuleListener` (транзакційний слухач): чи спрацьовує він, коли сервіс викликається без
   активної транзакції, слід підтвердити інтеграційним тестом.
-
