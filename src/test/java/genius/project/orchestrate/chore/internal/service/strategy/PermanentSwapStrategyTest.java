@@ -76,6 +76,17 @@ class PermanentSwapStrategyTest {
                 .extracting("errorCode").isEqualTo("SAME_USER_SWAP");
     }
 
+    @Test
+    @DisplayName("from user not in group: throws")
+    void fromUserNotInGroup_Throws() {
+        RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 1);
+        UUID stranger = UUID.randomUUID();
+
+        assertThatThrownBy(() -> strategy.execute(current, stranger, USER_A, null))
+                .isInstanceOf(UserNotInRotationException.class)
+                .extracting("errorCode").isEqualTo("USER_NOT_IN_ROTATION");
+    }
+
     private RotationSchedule schedule(List<UUID> order, int index, int cycle) {
         return new RotationSchedule(CHORE_ID, order, index, cycle, Instant.now());
     }
