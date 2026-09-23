@@ -1,13 +1,10 @@
-package genius.project.orchestrate.chore.internal.service.handler;
+package genius.project.orchestrate.chore.internal.service.strategy;
 
 import genius.project.orchestrate.chore.SwapType;
 import genius.project.orchestrate.chore.exception.SameUserSwapException;
 import genius.project.orchestrate.chore.exception.UserNotInRotationException;
 import genius.project.orchestrate.chore.internal.domain.RotationSchedule;
-import genius.project.orchestrate.chore.internal.service.strategy.SwapCommand;
-import genius.project.orchestrate.chore.internal.service.strategy.SwapOutcome;
-import genius.project.orchestrate.chore.internal.service.strategy.TemporarySwapStrategy;
-import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
+import genius.project.orchestrate.common.exception.InvalidCycleNumberException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -37,8 +34,7 @@ class TemporarySwapStrategyTest {
     void returnsScheduleForCycle() {
         RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 3);
 
-        SwapOutcome outcome = strategy.execute(current,
-                new SwapCommand.Swap(USER_A, USER_B, 5));
+        SwapOutcome outcome = strategy.execute(current, USER_A, USER_B, 5);
 
         assertThat(outcome).isInstanceOf(SwapOutcome.ScheduleForCycle.class);
         var scheduled = ((SwapOutcome.ScheduleForCycle) outcome).scheduled();
@@ -50,14 +46,23 @@ class TemporarySwapStrategyTest {
     }
 
     @Test
-    @DisplayName("missing cycleNumber: throws BusinessRuleViolationException")
+    @DisplayName("missing cycleNumber: throws")
     void missingCycleNumber_Throws() {
         RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 3);
 
-        assertThatThrownBy(() -> strategy.execute(current,
-                new SwapCommand.Swap(USER_A, USER_B, null)))
-                .isInstanceOf(BusinessRuleViolationException.class)
+        assertThatThrownBy(() -> strategy.execute(current, USER_A, USER_B, null))
+                .isInstanceOf(InvalidCycleNumberException.class)
                 .extracting("errorCode").isEqualTo("MISSING_CYCLE_NUMBER");
+    }
+
+    @Test
+    @DisplayName("cycle in the past: throws")
+    void cycleInPast_Throws() {
+        RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 5);
+
+        assertThatThrownBy(() -> strategy.execute(current, USER_A, USER_B, 5))
+                .isInstanceOf(InvalidCycleNumberException.class)
+                .extracting("errorCode").isEqualTo("CYCLE_IN_PAST");
     }
 
     @Test
@@ -65,8 +70,7 @@ class TemporarySwapStrategyTest {
     void sameUser_Throws() {
         RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 3);
 
-        assertThatThrownBy(() -> strategy.execute(current,
-                new SwapCommand.Swap(USER_A, USER_A, 5)))
+        assertThatThrownBy(() -> strategy.execute(current, USER_A, USER_A, 5))
                 .isInstanceOf(SameUserSwapException.class);
     }
 
@@ -76,8 +80,7 @@ class TemporarySwapStrategyTest {
         RotationSchedule current = schedule(List.of(USER_A, USER_B), 0, 3);
         UUID stranger = UUID.randomUUID();
 
-        assertThatThrownBy(() -> strategy.execute(current,
-                new SwapCommand.Swap(USER_A, stranger, 5)))
+        assertThatThrownBy(() -> strategy.execute(current, USER_A, stranger, 5))
                 .isInstanceOf(UserNotInRotationException.class);
     }
 

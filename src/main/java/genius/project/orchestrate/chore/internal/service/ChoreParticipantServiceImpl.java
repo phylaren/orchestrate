@@ -10,7 +10,6 @@ import genius.project.orchestrate.chore.internal.domain.Chore;
 import genius.project.orchestrate.chore.internal.domain.ChoreParticipant;
 import genius.project.orchestrate.chore.internal.repository.ChoreParticipantStore;
 import genius.project.orchestrate.chore.internal.repository.ChoreStore;
-import genius.project.orchestrate.chore.internal.repository.RotationRepository;
 import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
@@ -26,16 +25,13 @@ class ChoreParticipantServiceImpl implements ChoreParticipantService, ChoreClien
     private final ChoreStore choreStore;
     private final ChoreParticipantStore participantStore;
     private final RotationService rotationService;
-    private final RotationRepository rotationRepository;
 
     ChoreParticipantServiceImpl(ChoreStore choreStore,
                                 ChoreParticipantStore participantStore,
-                                RotationService rotationService,
-                                RotationRepository rotationRepository) {
+                                RotationService rotationService) {
         this.choreStore = choreStore;
         this.participantStore = participantStore;
         this.rotationService = rotationService;
-        this.rotationRepository = rotationRepository;
     }
 
     @Override
@@ -92,9 +88,7 @@ class ChoreParticipantServiceImpl implements ChoreParticipantService, ChoreClien
     @Override
     public Optional<AssignmentResponse> getCurrentAssignment(UUID choreId) {
         getChoreOrThrow(choreId);
-        return rotationRepository.findByChoreId(choreId)
-                .filter(s -> !s.isEmpty())
-                .map(AssignmentResponse::from);
+        return rotationService.getCurrentAssignment(choreId);
     }
 
     private Chore getChoreOrThrow(UUID choreId) {
