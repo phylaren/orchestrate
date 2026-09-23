@@ -3,7 +3,7 @@ package genius.project.orchestrate.swap.internal;
 import genius.project.orchestrate.chore.SwapType;
 import genius.project.orchestrate.chore.TurnSwapRequestedEvent;
 import genius.project.orchestrate.chore.client.ChoreClient;
-import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
+import genius.project.orchestrate.common.exception.InvalidCycleNumberException;
 import genius.project.orchestrate.identity.CurrentUserProvider;
 import genius.project.orchestrate.swap.SwapRequestStatus;
 import genius.project.orchestrate.swap.dto.SwapRequestRequest;
@@ -13,6 +13,7 @@ import genius.project.orchestrate.swap.exception.DuplicateSwapRequestException;
 import genius.project.orchestrate.swap.exception.InvalidSwapRequestRecipientException;
 import genius.project.orchestrate.swap.exception.InvalidSwapRequestStatusException;
 import genius.project.orchestrate.swap.exception.NotChoreParticipantException;
+import genius.project.orchestrate.swap.exception.NotInSameGroupException;
 import genius.project.orchestrate.swap.exception.NotSwapRequestReceiverException;
 import genius.project.orchestrate.swap.exception.SwapRequestNotFoundException;
 import genius.project.orchestrate.swap.internal.domain.SwapRequest;
@@ -104,7 +105,7 @@ class SwapRequestServiceImplTest {
 
             assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
                     new SwapRequestRequest(RECEIVER, SwapType.TEMPORARY, null)))
-                    .isInstanceOf(BusinessRuleViolationException.class)
+                    .isInstanceOf(InvalidCycleNumberException.class)
                     .extracting("errorCode").isEqualTo("MISSING_CYCLE_NUMBER");
         }
 
@@ -119,7 +120,22 @@ class SwapRequestServiceImplTest {
 
             assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
                     new SwapRequestRequest(RECEIVER, SwapType.TEMPORARY, 5)))
-                    .isInstanceOf(BusinessRuleViolationException.class)
+                    .isInstanceOf(InvalidCycleNumberException.class)
+                    .extracting("errorCode").isEqualTo("CYCLE_IN_PAST");
+        }
+
+        @Test
+        @DisplayName("TEMPORARY on current cycle: throws")
+        void temporary_CurrentCycle() {
+            when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
+            when(choreClient.isParticipant(CHORE_ID, INITIATOR)).thenReturn(true);
+            when(choreClient.isParticipant(CHORE_ID, RECEIVER)).thenReturn(true);
+            when(repository.existsPending(CHORE_ID, INITIATOR, RECEIVER)).thenReturn(false);
+            when(choreClient.currentCycleNumber(CHORE_ID)).thenReturn(5);
+
+            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
+                    new SwapRequestRequest(RECEIVER, SwapType.TEMPORARY, 5)))
+                    .isInstanceOf(InvalidCycleNumberException.class)
                     .extracting("errorCode").isEqualTo("CYCLE_IN_PAST");
         }
 
@@ -134,17 +150,8 @@ class SwapRequestServiceImplTest {
 
             assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
                     new SwapRequestRequest(RECEIVER, SwapType.TEMPORARY, 100)))
-                    .isInstanceOf(BusinessRuleViolationException.class)
+                    .isInstanceOf(InvalidCycleNumberException.class)
                     .extracting("errorCode").isEqualTo("CYCLE_TOO_FAR");
-        }
-
-        @Test
-        @DisplayName("INSERT: rejected")
-        void insert_Rejected() {
-            assertThatThrownBy(() -> service.createSwapRequest(CHORE_ID,
-                    new SwapRequestRequest(RECEIVER, SwapType.INSERT, null)))
-                    .isInstanceOf(BusinessRuleViolationException.class)
-                    .extracting("errorCode").isEqualTo("INSERT_NOT_SWAP_REQUEST");
         }
 
         @Test
@@ -249,7 +256,7 @@ class SwapRequestServiceImplTest {
 
             assertThatThrownBy(() -> service.respondToSwapRequest(CHORE_ID, REQUEST_ID,
                     new SwapRequestStatusRequest(SwapRequestStatus.ACCEPTED)))
-                    .isInstanceOf(BusinessRuleViolationException.class)
+                    .isInstanceOf(NotInSameGroupException.class)
                     .extracting("errorCode").isEqualTo("NOT_IN_SAME_GROUP");
 
             verify(repository, never()).update(any());
@@ -332,7 +339,7 @@ class SwapRequestServiceImplTest {
             List<SwapRequestResponse> result = service.getSwapRequests(CHORE_ID);
 
             assertThat(result).hasSize(1);
-            assertThat(result.get(0).swapType()).isEqualTo(SwapType.PERMANENT);
+            assertThat(result.getFirst().swapType()).isEqualTo(SwapType.PERMANENT);
         }
     }
 

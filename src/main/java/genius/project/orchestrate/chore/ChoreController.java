@@ -2,8 +2,6 @@ package genius.project.orchestrate.chore;
 
 import genius.project.orchestrate.chore.dto.ChoreCreateRequest;
 import genius.project.orchestrate.chore.dto.ChoreResponse;
-import genius.project.orchestrate.chore.dto.RotationScheduleResponse;
-import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

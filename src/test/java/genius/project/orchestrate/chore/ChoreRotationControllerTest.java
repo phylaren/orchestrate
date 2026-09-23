@@ -1,12 +1,10 @@
 package genius.project.orchestrate.chore;
 
 import genius.project.orchestrate.chore.dto.RotationScheduleResponse;
-import genius.project.orchestrate.identity.CurrentUserProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -15,20 +13,16 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ChoreRotationController.class)
 class ChoreRotationControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockitoBean
-    private CurrentUserProvider currentUserProvider;
 
     @MockitoBean
     private RotationService rotationService;
@@ -48,6 +42,7 @@ class ChoreRotationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.choreId").value(CHORE_ID.toString()))
                 .andExpect(jsonPath("$.cycleNumber").value(3))
+                .andExpect(jsonPath("$.currentResponsibleUserId").value(USER_A.toString()))
                 .andExpect(jsonPath("$.order.length()").value(2));
     }
 
@@ -59,37 +54,5 @@ class ChoreRotationControllerTest {
         mockMvc.perform(get("/api/v1/chores/{choreId}/rotation", CHORE_ID))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NO_ROTATION_SCHEDULE"));
-    }
-
-    @Test
-    @DisplayName("POST insert returns updated schedule")
-    void insert() throws Exception {
-        RotationScheduleResponse response = new RotationScheduleResponse(
-                CHORE_ID, List.of(USER_B, USER_A), USER_B, 1, Instant.now());
-        when(currentUserProvider.getUserId()).thenReturn(UUID.randomUUID());
-        when(rotationService.insert(eq(CHORE_ID), eq(USER_A), eq(0))).thenReturn(response);
-
-        mockMvc.perform(post("/api/v1/chores/{choreId}/rotation/insert", CHORE_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"userId":"%s","position":0}
-                                """.formatted(USER_A)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.order[0]").value(USER_B.toString()))
-                .andExpect(jsonPath("$.order[1]").value(USER_A.toString()));
-    }
-
-    @Test
-    @DisplayName("POST insert self: 403")
-    void insertSelf_Returns403() throws Exception {
-        when(currentUserProvider.getUserId()).thenReturn(USER_A);
-
-        mockMvc.perform(post("/api/v1/chores/{choreId}/rotation/insert", CHORE_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"userId":"%s","position":0}
-                                """.formatted(USER_A)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("INSERT_SELF_NOT_ALLOWED"));
     }
 }

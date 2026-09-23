@@ -6,8 +6,6 @@ import genius.project.orchestrate.chore.internal.domain.RotationSchedule;
 import genius.project.orchestrate.chore.internal.domain.ScheduledSwap;
 import genius.project.orchestrate.chore.internal.repository.RotationRepository;
 import genius.project.orchestrate.chore.internal.repository.ScheduledSwapRepository;
-
-import genius.project.orchestrate.chore.internal.service.strategy.InsertSwapStrategy;
 import genius.project.orchestrate.chore.internal.service.strategy.PermanentSwapStrategy;
 import genius.project.orchestrate.chore.internal.service.strategy.SwapStrategy;
 import genius.project.orchestrate.chore.internal.service.strategy.TemporarySwapStrategy;
@@ -48,16 +46,13 @@ class RotationServiceImplTest {
     private static final UUID USER_A = UUID.randomUUID();
     private static final UUID USER_B = UUID.randomUUID();
     private static final UUID USER_C = UUID.randomUUID();
-    private static final UUID USER_D = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
         List<SwapStrategy> strategies = List.of(
                 new PermanentSwapStrategy(),
-                new TemporarySwapStrategy(),
-                new InsertSwapStrategy());
+                new TemporarySwapStrategy());
         service = new RotationServiceImpl(rotationRepository, scheduledSwapRepository, strategies);
-
     }
 
     @Nested
@@ -69,8 +64,6 @@ class RotationServiceImplTest {
         void returnsResponse() {
             RotationSchedule schedule = schedule(List.of(USER_A, USER_B), 0, 1);
             when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
-            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 1))
-                    .thenReturn(List.of());
 
             Optional<RotationScheduleResponse> result = service.getSchedule(CHORE_ID);
 
@@ -88,50 +81,15 @@ class RotationServiceImplTest {
         }
 
         @Test
-        @DisplayName("deletes expired scheduled swaps before rendering")
-        void deletesExpired() {
+        @DisplayName("does not touch scheduled swaps")
+        void doesNotTouchScheduledSwaps() {
             RotationSchedule schedule = schedule(List.of(USER_A), 0, 5);
             when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
-            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 5))
-                    .thenReturn(List.of());
 
             service.getSchedule(CHORE_ID);
 
-            verify(scheduledSwapRepository).deleteExpired(CHORE_ID, 5);
-        }
-
-        @Test
-        @DisplayName("overlays scheduled swaps for current cycle")
-        void overlaysScheduledSwaps() {
-            RotationSchedule schedule = schedule(List.of(USER_A, USER_B, USER_C), 0, 5);
-            ScheduledSwap scheduled = new ScheduledSwap(
-                    UUID.randomUUID(), CHORE_ID, USER_A, USER_B, 5, Instant.now());
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
-            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 5))
-                    .thenReturn(List.of(scheduled));
-
-            Optional<RotationScheduleResponse> result = service.getSchedule(CHORE_ID);
-
-            assertThat(result).isPresent();
-            assertThat(result.get().order()).containsExactly(USER_B, USER_A, USER_C);
-            assertThat(result.get().currentResponsibleUserId()).isEqualTo(USER_A);
-        }
-
-        @Test
-        @DisplayName("skips scheduled swap if user not in group")
-        void skipsWhenUserNotInGroup() {
-            RotationSchedule schedule = schedule(List.of(USER_A, USER_B), 0, 5);
-            UUID stranger = UUID.randomUUID();
-            ScheduledSwap scheduled = new ScheduledSwap(
-                    UUID.randomUUID(), CHORE_ID, USER_A, stranger, 5, Instant.now());
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.of(schedule));
-            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 5))
-                    .thenReturn(List.of(scheduled));
-
-            Optional<RotationScheduleResponse> result = service.getSchedule(CHORE_ID);
-
-            assertThat(result).isPresent();
-            assertThat(result.get().order()).containsExactly(USER_A, USER_B);
+            verify(scheduledSwapRepository, never()).deleteExpired(any(), any(Integer.class));
+            verify(scheduledSwapRepository, never()).findByChoreIdAndCycleNumber(any(), any(Integer.class));
         }
     }
 
@@ -144,8 +102,6 @@ class RotationServiceImplTest {
         void returnsResponsible() {
             when(rotationRepository.findByChoreId(CHORE_ID))
                     .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B), 1, 2)));
-            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 2))
-                    .thenReturn(List.of());
 
             assertThat(service.currentResponsible(CHORE_ID)).contains(USER_B);
         }
@@ -204,7 +160,7 @@ class RotationServiceImplTest {
     class AddParticipant {
 
         @Test
-        @DisplayName("first participant: creates schedule, cycle increments")
+        @DisplayName("first participant: creates schedule")
         void firstParticipant() {
             when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.empty());
             when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -299,10 +255,12 @@ class RotationServiceImplTest {
     class Advance {
 
         @Test
-        @DisplayName("advances to next, cycle increments")
+        @DisplayName("advances to next, cycle increments, materializes scheduled swaps, purges expired")
         void advances() {
             when(rotationRepository.findByChoreId(CHORE_ID))
                     .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B, USER_C), 0, 1)));
+            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 2))
+                    .thenReturn(List.of());
             when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             service.advance(CHORE_ID);
@@ -311,6 +269,8 @@ class RotationServiceImplTest {
             verify(rotationRepository).save(captor.capture());
             assertThat(captor.getValue().currentIndex()).isEqualTo(1);
             assertThat(captor.getValue().currentCycleNumber()).isEqualTo(2);
+
+            verify(scheduledSwapRepository).deleteExpired(CHORE_ID, 3);
         }
 
         @Test
@@ -318,6 +278,8 @@ class RotationServiceImplTest {
         void wraps() {
             when(rotationRepository.findByChoreId(CHORE_ID))
                     .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B), 1, 3)));
+            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 4))
+                    .thenReturn(List.of());
             when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             service.advance(CHORE_ID);
@@ -328,7 +290,45 @@ class RotationServiceImplTest {
         }
 
         @Test
-        @DisplayName("empty schedule: no save")
+        @DisplayName("applies scheduled swap for the new cycle")
+        void appliesScheduledSwapForNewCycle() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B, USER_C), 0, 1)));
+            ScheduledSwap scheduled = new ScheduledSwap(
+                    UUID.randomUUID(), CHORE_ID, USER_B, USER_C, 2, Instant.now());
+            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 2))
+                    .thenReturn(List.of(scheduled));
+            when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.advance(CHORE_ID);
+
+            ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
+            verify(rotationRepository).save(captor.capture());
+            // advanced to index 1 (USER_B), then swap B<->C applied -> [A, C, B], index stays 1
+            assertThat(captor.getValue().baseOrder()).containsExactly(USER_A, USER_C, USER_B);
+        }
+
+        @Test
+        @DisplayName("skips scheduled swap when user not in group")
+        void skipsScheduledSwapWhenUserNotInGroup() {
+            when(rotationRepository.findByChoreId(CHORE_ID))
+                    .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B), 0, 1)));
+            UUID stranger = UUID.randomUUID();
+            ScheduledSwap scheduled = new ScheduledSwap(
+                    UUID.randomUUID(), CHORE_ID, USER_A, stranger, 2, Instant.now());
+            when(scheduledSwapRepository.findByChoreIdAndCycleNumber(CHORE_ID, 2))
+                    .thenReturn(List.of(scheduled));
+            when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.advance(CHORE_ID);
+
+            ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
+            verify(rotationRepository).save(captor.capture());
+            assertThat(captor.getValue().baseOrder()).containsExactly(USER_A, USER_B);
+        }
+
+        @Test
+        @DisplayName("empty schedule: no save, no scheduled-swap lookup")
         void empty() {
             when(rotationRepository.findByChoreId(CHORE_ID))
                     .thenReturn(Optional.of(schedule(List.of(), 0, 1)));
@@ -336,6 +336,7 @@ class RotationServiceImplTest {
             service.advance(CHORE_ID);
 
             verify(rotationRepository, never()).save(any());
+            verify(scheduledSwapRepository, never()).deleteExpired(any(), any(Integer.class));
         }
 
         @Test
@@ -393,35 +394,6 @@ class RotationServiceImplTest {
 
             assertThatThrownBy(() -> service.swap(
                     CHORE_ID, USER_A, USER_B, SwapType.PERMANENT, null))
-                    .isInstanceOf(ResourceNotFoundException.class);
-        }
-    }
-
-    @Nested
-    @DisplayName("insert")
-    class Insert {
-
-        @Test
-        @DisplayName("inserts user at position and saves")
-        void inserts() {
-            when(rotationRepository.findByChoreId(CHORE_ID))
-                    .thenReturn(Optional.of(schedule(List.of(USER_A, USER_B, USER_C, USER_D), 0, 1)));
-            when(rotationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-            service.insert(CHORE_ID, USER_D, 1);
-
-            ArgumentCaptor<RotationSchedule> captor = ArgumentCaptor.forClass(RotationSchedule.class);
-            verify(rotationRepository).save(captor.capture());
-            assertThat(captor.getValue().baseOrder())
-                    .containsExactly(USER_A, USER_D, USER_B, USER_C);
-        }
-
-        @Test
-        @DisplayName("no schedule: throws")
-        void noSchedule() {
-            when(rotationRepository.findByChoreId(CHORE_ID)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> service.insert(CHORE_ID, USER_A, 0))
                     .isInstanceOf(ResourceNotFoundException.class);
         }
     }
