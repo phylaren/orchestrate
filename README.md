@@ -24,6 +24,8 @@
 - [Як змінювати автомат](#як-змінювати-автомат)
 - [Відомі обмеження](#відомі-обмеження)
 
+Схема бази даних і правила роботи з БД — окремий документ: [`README-db.md`](README-db.md).
+
 ---
 
 ## Загальний підхід
@@ -155,6 +157,18 @@ stateDiagram-v2
 | `PENDING → ACCEPTED` | `ACCEPTED` | Отримувач, `PATCH /api/v1/chores/{choreId}/swap-requests/{requestId}` зі `status = ACCEPTED` | Публікується `TurnSwapRequestedEvent` → модуль `chore` виконує `swapTurns`: два учасники міняються місцями в черзі; якщо відповідальним був ініціатор, відповідальність переходить до отримувача в тому самому циклі |
 | `PENDING → REJECTED` | `REJECTED` | Отримувач, той самий `PATCH` зі `status = REJECTED` | Подія **не** публікується, черга не змінюється |
 
+### API
+
+| Метод | Шлях | Хто | Що робить |
+|---|---|---|---|
+| POST | `/api/v1/chores/{choreId}/swap-requests` | учасник групи | створити запит (`PENDING`) → 201 |
+| GET | `.../swap-requests[?status=PENDING]` | — | список запитів обов'язку (з фільтром за статусом) |
+| GET | `.../swap-requests/{requestId}` | — | один запит |
+| GET | `.../swap-requests/summary` | — | кількість запитів за статусами |
+| PUT | `.../swap-requests/{requestId}` | ініціатор, статус `PENDING` | замінити умови (`swapType`, `cycleNumber`) |
+| PATCH | `.../swap-requests/{requestId}` | отримувач | відповідь `ACCEPTED` / `REJECTED` (FSM) |
+| DELETE | `.../swap-requests/{requestId}` | ініціатор, статус `PENDING` | скасувати запит → 204 |
+
 ### Бізнес-правила
 
 | № | Правило |
@@ -166,6 +180,9 @@ stateDiagram-v2
 | BR-S5 | Запит має належати саме тому обов'язку, що вказаний у шляху; інакше він «не знайдений» (`SWAP_REQUEST_NOT_FOUND`). |
 | BR-S6 | Відповісти можна лише на запит у стані `PENDING`; `ACCEPTED` і `REJECTED` незмінні. |
 | BR-S7 | Тільки перехід `PENDING → ACCEPTED` змінює чергу й публікує подію. Невдала спроба (`422`) подій не породжує. |
+| BR-S8 | Змінювати або видаляти запит може лише його ініціатор (`NOT_SWAP_REQUEST_INITIATOR`, 403). Перевірка виконується після пошуку запиту й до зміни стану. |
+| BR-S9 | Змінювати або видаляти можна лише запит у стані `PENDING` (`SWAP_REQUEST_NOT_EDITABLE`, 409); `ACCEPTED` і `REJECTED` незмінні. |
+| BR-S10 | При заміні умов `TEMPORARY` проходить ту саму перевірку `cycleNumber`, що й при створенні (`MISSING_CYCLE_NUMBER` / `CYCLE_IN_PAST` / `CYCLE_TOO_FAR`); для `PERMANENT` `cycleNumber` зберігається як `null`. |
 
 ---
 
@@ -337,6 +354,8 @@ SwapOutcome                  → ApplyNow → save schedule
 | Користувач не в ротації | `UserNotInRotationException` | `USER_NOT_IN_ROTATION` | 400 |
 | Немає / минулий / занадто далекий `cycleNumber` | `InvalidCycleNumberException` | `MISSING_CYCLE_NUMBER` / `CYCLE_IN_PAST` / `CYCLE_TOO_FAR` | 400 |
 | Непідтримуваний `SwapType` | `BusinessRuleViolationException` | `UNSUPPORTED_SWAP_TYPE` | 409 |
+| Змінює або видаляє не ініціатор | `NotSwapRequestInitiatorException` | `NOT_SWAP_REQUEST_INITIATOR` | 403 |
+| Спроба змінити чи видалити незмінний запит | `SwapRequestNotEditableException` | `SWAP_REQUEST_NOT_EDITABLE` | 409 |
 
 Приклад відповіді на недозволений перехід:
 
@@ -436,6 +455,7 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 | `chore/internal/service/strategy/PermanentSwapStrategyTest` | PERMANENT: swap двох, index слідує за відповідальним, same-user / not-in-group |
 | `chore/internal/service/strategy/TemporarySwapStrategyTest` | TEMPORARY: ScheduleForCycle, MISSING_CYCLE_NUMBER, CYCLE_IN_PAST, same-user, not-in-group |
 | `chore/internal/service/RotationServiceImplTest` | Делегування стратегіям, apply ScheduledSwap при `advance` |
+| `swap/SwapRequestControllerTest` | CRUD-ендпоінти, `summary`, фільтр за статусом, 400/403/404/409/422 |
 
 Матриці в тестах і в цьому файлі мають збігатися: якщо змінюєте одну — змінюйте й іншу.
 
