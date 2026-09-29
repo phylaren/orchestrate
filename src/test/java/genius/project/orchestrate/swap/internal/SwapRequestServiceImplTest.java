@@ -41,6 +41,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,7 +66,7 @@ class SwapRequestServiceImplTest {
 
     @BeforeEach
     void stubResponseMapper() {
-        when(responseMapper.toResponse(any(SwapRequest.class))).thenAnswer(invocation -> {
+        lenient().when(responseMapper.toResponse(any(SwapRequest.class))).thenAnswer(invocation -> {
             SwapRequest request = invocation.getArgument(0);
             return new SwapRequestResponse(
                     request.id(),
@@ -299,6 +300,7 @@ class SwapRequestServiceImplTest {
                     new SwapRequestStatusRequest(SwapRequestStatus.REJECTED));
 
             verify(eventPublisher, never()).publishEvent(any());
+            verify(choreClient, never()).isParticipant(any(), any());
         }
 
         @Test
