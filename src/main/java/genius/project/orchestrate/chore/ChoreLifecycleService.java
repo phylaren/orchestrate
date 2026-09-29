@@ -13,4 +13,9 @@ public interface ChoreLifecycleService {
     List<ChoreResponse> listChores(UUID householdId);
 
     ChoreResponse getChore(UUID choreId);
+
+    ChoreResponse updateChore(UUID choreId, String name, String description,
+                              int recurrenceDays, boolean requiresConfirmation);
+
+    void deleteChore(UUID choreId);
 }

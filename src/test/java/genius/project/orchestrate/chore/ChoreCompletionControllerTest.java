@@ -3,6 +3,7 @@ package genius.project.orchestrate.chore;
 import genius.project.orchestrate.chore.dto.CompletionResponse;
 import genius.project.orchestrate.chore.dto.ConfirmationDecisionRequest;
 import genius.project.orchestrate.chore.exception.InvalidConfirmationStatusException;
+import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
 import genius.project.orchestrate.identity.CurrentUserProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,8 +18,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -151,5 +154,27 @@ class ChoreCompletionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ---------- DELETE .../completions/{completionId} ----------
+
+    @Test
+    @DisplayName("DELETE .../completions/{completionId} повертає 204 No Content")
+    void deleteCompletion_ReturnsNoContent() throws Exception {
+        mockMvc.perform(delete("/api/v1/chores/{choreId}/completions/{completionId}", CHORE_ID, COMPLETION_ID))
+                .andExpect(status().isNoContent());
+
+        verify(choreCompletionService).deleteCompletion(CHORE_ID, COMPLETION_ID);
+    }
+
+    @Test
+    @DisplayName("DELETE .../completions/{completionId} для підтвердженого виконання повертає 409 Conflict")
+    void deleteCompletion_WhenNotDeletable_ReturnsConflict() throws Exception {
+        doThrow(new BusinessRuleViolationException("COMPLETION_NOT_DELETABLE", "cannot delete"))
+                .when(choreCompletionService).deleteCompletion(CHORE_ID, COMPLETION_ID);
+
+        mockMvc.perform(delete("/api/v1/chores/{choreId}/completions/{completionId}", CHORE_ID, COMPLETION_ID))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("COMPLETION_NOT_DELETABLE"));
     }
 }

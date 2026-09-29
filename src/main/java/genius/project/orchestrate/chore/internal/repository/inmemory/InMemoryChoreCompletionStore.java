@@ -32,4 +32,9 @@ class InMemoryChoreCompletionStore implements ChoreCompletionStore {
                 .filter(c -> c.choreId().equals(choreId))
                 .toList();
     }
+
+    @Override
+    public void deleteById(UUID completionId) {
+        store.remove(completionId);
+    }
 }

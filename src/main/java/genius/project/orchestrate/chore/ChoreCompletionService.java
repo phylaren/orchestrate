@@ -15,4 +15,6 @@ public interface ChoreCompletionService {
 
     CompletionResponse decideConfirmation(UUID choreId, UUID completionId,
                                           UUID confirmedByUserId, boolean approved);
+
+    void deleteCompletion(UUID choreId, UUID completionId);
 }

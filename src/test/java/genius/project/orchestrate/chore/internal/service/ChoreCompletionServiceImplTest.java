@@ -257,6 +257,58 @@ class ChoreCompletionServiceImplTest {
     }
 
     // -------------------------------------------------------------------------
+    // deleteCompletion
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("deleteCompletion")
+    class DeleteCompletion {
+
+        @ParameterizedTest
+        @CsvSource({"PENDING", "REJECTED"})
+        @DisplayName("PENDING and REJECTED completions are deleted")
+        void deletableStatuses(ConfirmationStatus status) {
+            ChoreCompletion c = completion(UUID.randomUUID(), USER_A, status);
+            when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(true)));
+            when(completionStore.findById(c.id())).thenReturn(Optional.of(c));
+
+            service.deleteCompletion(CHORE_ID, c.id());
+
+            verify(completionStore).deleteById(c.id());
+        }
+
+        @ParameterizedTest
+        @CsvSource({"CONFIRMED", "NOT_REQUIRED"})
+        @DisplayName("CONFIRMED and NOT_REQUIRED completions cannot be deleted")
+        void nonDeletableStatuses(ConfirmationStatus status) {
+            ChoreCompletion c = completion(UUID.randomUUID(), USER_A, status);
+            when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(true)));
+            when(completionStore.findById(c.id())).thenReturn(Optional.of(c));
+
+            assertThatThrownBy(() -> service.deleteCompletion(CHORE_ID, c.id()))
+                    .isInstanceOf(BusinessRuleViolationException.class)
+                    .extracting("errorCode").isEqualTo("COMPLETION_NOT_DELETABLE");
+
+            verify(completionStore, never()).deleteById(any());
+        }
+
+        @Test
+        @DisplayName("completion of another chore is reported as not found")
+        void completionOfOtherChore_NotFound() {
+            ChoreCompletion foreign = new ChoreCompletion(UUID.randomUUID(), UUID.randomUUID(), USER_A,
+                    Instant.now(), ConfirmationStatus.PENDING, null, null);
+            when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(true)));
+            when(completionStore.findById(foreign.id())).thenReturn(Optional.of(foreign));
+
+            assertThatThrownBy(() -> service.deleteCompletion(CHORE_ID, foreign.id()))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .extracting("errorCode").isEqualTo("COMPLETION_NOT_FOUND");
+
+            verify(completionStore, never()).deleteById(any());
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // helpers
     // -------------------------------------------------------------------------
 
@@ -267,4 +319,4 @@ class ChoreCompletionServiceImplTest {
     private ChoreCompletion completion(UUID id, UUID completedBy, ConfirmationStatus status) {
         return new ChoreCompletion(id, CHORE_ID, completedBy, Instant.now(), status, null, null);
     }
-}
+}
