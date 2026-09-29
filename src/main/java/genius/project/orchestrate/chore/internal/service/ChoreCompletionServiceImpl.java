@@ -82,7 +82,7 @@ class ChoreCompletionServiceImpl implements ChoreCompletionService {
 
     @Override
     public CompletionResponse decideConfirmation(UUID choreId, UUID completionId,
-                                                  UUID confirmedByUserId, boolean approved) {
+                                                 UUID confirmedByUserId, boolean approved) {
         getChoreOrThrow(choreId);
 
         ChoreCompletion completion = completionStore.findById(completionId)
@@ -115,6 +115,25 @@ class ChoreCompletionServiceImpl implements ChoreCompletionService {
         }
 
         return CompletionResponse.from(resolved);
+    }
+
+    @Override
+    public void deleteCompletion(UUID choreId, UUID completionId) {
+        getChoreOrThrow(choreId);
+
+        ChoreCompletion completion = completionStore.findById(completionId)
+                .filter(c -> c.choreId().equals(choreId))
+                .orElseThrow(() -> ResourceNotFoundException.of("completion", completionId));
+
+        if (completion.status() != ConfirmationStatus.PENDING
+                && completion.status() != ConfirmationStatus.REJECTED) {
+            throw new BusinessRuleViolationException(
+                    "COMPLETION_NOT_DELETABLE",
+                    "Completion '%s' has status %s and can no longer be deleted."
+                            .formatted(completionId, completion.status()));
+        }
+
+        completionStore.deleteById(completionId);
     }
 
     private Chore getChoreOrThrow(UUID choreId) {

@@ -33,10 +33,6 @@ public record RotationSchedule(
         return baseOrder.get(currentIndex);
     }
 
-    /**
-     * Moves the pointer to the next participant and bumps the cycle.
-     * Empty rotation stays as is.
-     */
     public RotationSchedule advanced() {
         if (isEmpty()) {
             return this;
@@ -46,10 +42,6 @@ public record RotationSchedule(
                 currentCycleNumber + 1, Instant.now());
     }
 
-    /**
-     * Swaps positions of two participants. The current responsible stays the same user;
-     * their index is re-resolved against the new order. Cycle metadata is preserved.
-     */
     public RotationSchedule swapParticipants(UUID a, UUID b) {
         if (a.equals(b)) {
             throw new SameUserSwapException(a);

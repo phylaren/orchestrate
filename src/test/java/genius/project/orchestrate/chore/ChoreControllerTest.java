@@ -2,6 +2,7 @@ package genius.project.orchestrate.chore;
 
 import genius.project.orchestrate.chore.dto.ChoreCreateRequest;
 import genius.project.orchestrate.chore.dto.ChoreResponse;
+import genius.project.orchestrate.chore.dto.ChoreUpdateRequest;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,10 +18,15 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ChoreController.class)
@@ -119,6 +125,72 @@ class ChoreControllerTest {
                 .thenThrow(new ResourceNotFoundException("CHORE_NOT_FOUND", "Chore not found"));
 
         mockMvc.perform(get("/api/v1/chores/{choreId}", CHORE_ID))
+                .andExpect(status().isNotFound());
+    }
+
+    // ---------- PUT /api/v1/chores/{choreId} ----------
+
+    @Test
+    @DisplayName("PUT /api/v1/chores/{choreId} з валідними даними повертає оновлений Chore")
+    void updateChore_WithValidData_ReturnsUpdated() throws Exception {
+        ChoreUpdateRequest request = new ChoreUpdateRequest("Пилосос", "Вітальня", 14, false);
+        ChoreResponse response = new ChoreResponse(CHORE_ID, HOUSEHOLD_ID, "Пилосос", "Вітальня",
+                14, false, false, Instant.now());
+        when(choreLifecycleService.updateChore(CHORE_ID, "Пилосос", "Вітальня", 14, false))
+                .thenReturn(response);
+
+        mockMvc.perform(put("/api/v1/chores/{choreId}", CHORE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(CHORE_ID.toString()))
+                .andExpect(jsonPath("$.name").value("Пилосос"))
+                .andExpect(jsonPath("$.recurrenceDays").value(14))
+                .andExpect(jsonPath("$.requiresConfirmation").value(false));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/chores/{choreId} з пустим name повертає 400 Bad Request")
+    void updateChore_WithBlankName_ReturnsBadRequest() throws Exception {
+        ChoreUpdateRequest request = new ChoreUpdateRequest(" ", null, 7, true);
+
+        mockMvc.perform(put("/api/v1/chores/{choreId}", CHORE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/chores/{choreId} для неіснуючого Chore повертає 404 Not Found")
+    void updateChore_WithMissingId_ReturnsNotFound() throws Exception {
+        ChoreUpdateRequest request = new ChoreUpdateRequest("Пилосос", null, 7, true);
+        when(choreLifecycleService.updateChore(any(UUID.class), any(), any(), anyInt(), anyBoolean()))
+                .thenThrow(new ResourceNotFoundException("CHORE_NOT_FOUND", "Chore not found"));
+
+        mockMvc.perform(put("/api/v1/chores/{choreId}", CHORE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound());
+    }
+
+    // ---------- DELETE /api/v1/chores/{choreId} ----------
+
+    @Test
+    @DisplayName("DELETE /api/v1/chores/{choreId} повертає 204 No Content")
+    void deleteChore_ReturnsNoContent() throws Exception {
+        mockMvc.perform(delete("/api/v1/chores/{choreId}", CHORE_ID))
+                .andExpect(status().isNoContent());
+
+        verify(choreLifecycleService).deleteChore(CHORE_ID);
+    }
+
+    @Test
+    @DisplayName("DELETE /api/v1/chores/{choreId} для неіснуючого Chore повертає 404 Not Found")
+    void deleteChore_WithMissingId_ReturnsNotFound() throws Exception {
+        doThrow(new ResourceNotFoundException("CHORE_NOT_FOUND", "Chore not found"))
+                .when(choreLifecycleService).deleteChore(CHORE_ID);
+
+        mockMvc.perform(delete("/api/v1/chores/{choreId}", CHORE_ID))
                 .andExpect(status().isNotFound());
     }
 }

@@ -13,4 +13,6 @@ public interface ChoreCompletionStore {
     Optional<ChoreCompletion> findById(UUID completionId);
 
     List<ChoreCompletion> findByChoreId(UUID choreId);
+
+    void deleteById(UUID completionId);
 }
