@@ -2,6 +2,7 @@ package genius.project.orchestrate.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -91,6 +92,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         body.setProperty("code", "MALFORMED_REQUEST_BODY");
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException ex,
+                                                             HttpServletRequest request) {
+        ProblemDetail body = baseProblem(HttpStatus.CONFLICT, "Data integrity violation",
+                "The request violates a database constraint.", request);
+        body.setProperty("code", "DATA_INTEGRITY_VIOLATION");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
     @ExceptionHandler(Exception.class)
