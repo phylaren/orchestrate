@@ -10,13 +10,25 @@ import genius.project.orchestrate.swap.SwapRequestStatus;
 import genius.project.orchestrate.swap.dto.SwapRequestRequest;
 import genius.project.orchestrate.swap.dto.SwapRequestResponse;
 import genius.project.orchestrate.swap.dto.SwapRequestStatusRequest;
-import genius.project.orchestrate.swap.exception.*;
+import genius.project.orchestrate.swap.dto.SwapRequestSummaryResponse;
+import genius.project.orchestrate.swap.dto.SwapRequestUpdateRequest;
+import genius.project.orchestrate.swap.exception.DuplicateSwapRequestException;
+import genius.project.orchestrate.swap.exception.InvalidSwapRequestRecipientException;
+import genius.project.orchestrate.swap.exception.InvalidSwapRequestStatusException;
+import genius.project.orchestrate.swap.exception.NotChoreParticipantException;
+import genius.project.orchestrate.swap.exception.NotInSameGroupException;
+import genius.project.orchestrate.swap.exception.NotSwapRequestInitiatorException;
+import genius.project.orchestrate.swap.exception.NotSwapRequestReceiverException;
+import genius.project.orchestrate.swap.exception.SwapRequestNotEditableException;
+import genius.project.orchestrate.swap.exception.SwapRequestNotFoundException;
 import genius.project.orchestrate.swap.internal.domain.SwapRequest;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -28,25 +40,55 @@ public class SwapRequestServiceImpl implements SwapRequestService {
     private final CurrentUserProvider currentUserProvider;
     private final ChoreClient choreClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final SwapRequestResponseMapper responseMapper;
 
     public SwapRequestServiceImpl(SwapRequestRepository repository,
                                   CurrentUserProvider currentUserProvider,
                                   ChoreClient choreClient,
-                                  ApplicationEventPublisher eventPublisher) {
+                                  ApplicationEventPublisher eventPublisher,
+                                  SwapRequestResponseMapper responseMapper) {
         this.repository = repository;
         this.currentUserProvider = currentUserProvider;
         this.choreClient = choreClient;
         this.eventPublisher = eventPublisher;
+        this.responseMapper = responseMapper;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<SwapRequestResponse> getSwapRequests(UUID choreId) {
         return repository.findByChoreId(choreId).stream()
-                .map(this::toResponse)
+                .map(responseMapper::toResponse)
                 .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<SwapRequestResponse> getSwapRequests(UUID choreId, SwapRequestStatus status) {
+        if (status == null) {
+            return getSwapRequests(choreId);
+        }
+        return repository.findByChoreIdAndStatus(choreId, status).stream()
+                .map(responseMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SwapRequestResponse getSwapRequest(UUID choreId, UUID requestId) {
+        return responseMapper.toResponse(requireRequestOfChore(choreId, requestId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SwapRequestSummaryResponse getSummary(UUID choreId) {
+        Map<SwapRequestStatus, Long> byStatus = repository.countGroupedByStatus(choreId);
+        long total = byStatus.values().stream().mapToLong(Long::longValue).sum();
+        return new SwapRequestSummaryResponse(choreId, total, byStatus);
+    }
+
+    @Override
+    @Transactional
     public SwapRequestResponse createSwapRequest(UUID choreId, SwapRequestRequest request) {
         UUID initiatorId = currentUserProvider.getUserId();
         UUID receiverId = request.receiverUserId();
@@ -77,21 +119,44 @@ public class SwapRequestServiceImpl implements SwapRequestService {
                 cycleNumber,
                 LocalDateTime.now()));
 
-        return toResponse(saved);
+        return responseMapper.toResponse(saved);
     }
 
     @Override
+    @Transactional
+    public SwapRequestResponse updateSwapRequest(UUID choreId,
+                                                 UUID requestId,
+                                                 SwapRequestUpdateRequest request) {
+        UUID currentUserId = currentUserProvider.getUserId();
+
+        SwapRequest existing = requireRequestOfChore(choreId, requestId);
+        requireInitiator(existing, currentUserId);
+        requirePending(existing);
+
+        Integer cycleNumber = resolveCycleNumber(choreId, request.swapType(), request.cycleNumber());
+
+        SwapRequest updated = repository.update(new SwapRequest(
+                existing.id(),
+                existing.choreId(),
+                existing.initiatorUserId(),
+                existing.receiverUserId(),
+                existing.status(),
+                request.swapType(),
+                cycleNumber,
+                existing.createdAt()));
+
+        return responseMapper.toResponse(updated);
+    }
+
+    @Override
+    @Transactional
     public SwapRequestResponse respondToSwapRequest(UUID choreId,
                                                     UUID requestId,
                                                     SwapRequestStatusRequest request) {
         UUID currentUserId = currentUserProvider.getUserId();
 
-        SwapRequest existing = repository.findById(requestId)
-                .orElseThrow(() -> new SwapRequestNotFoundException(requestId));
+        SwapRequest existing = requireRequestOfChore(choreId, requestId);
 
-        if (!existing.choreId().equals(choreId)) {
-            throw new SwapRequestNotFoundException(requestId);
-        }
         if (!existing.receiverUserId().equals(currentUserId)) {
             throw new NotSwapRequestReceiverException(currentUserId, requestId);
         }
@@ -125,7 +190,40 @@ public class SwapRequestServiceImpl implements SwapRequestService {
                     updated.cycleNumber()));
         }
 
-        return toResponse(updated);
+        return responseMapper.toResponse(updated);
+    }
+
+    @Override
+    @Transactional
+    public void deleteSwapRequest(UUID choreId, UUID requestId) {
+        UUID currentUserId = currentUserProvider.getUserId();
+
+        SwapRequest existing = requireRequestOfChore(choreId, requestId);
+        requireInitiator(existing, currentUserId);
+        requirePending(existing);
+
+        repository.deleteById(existing.id());
+    }
+
+    private SwapRequest requireRequestOfChore(UUID choreId, UUID requestId) {
+        SwapRequest existing = repository.findById(requestId)
+                .orElseThrow(() -> new SwapRequestNotFoundException(requestId));
+        if (!existing.choreId().equals(choreId)) {
+            throw new SwapRequestNotFoundException(requestId);
+        }
+        return existing;
+    }
+
+    private void requireInitiator(SwapRequest request, UUID userId) {
+        if (!request.initiatorUserId().equals(userId)) {
+            throw new NotSwapRequestInitiatorException(userId, request.id());
+        }
+    }
+
+    private void requirePending(SwapRequest request) {
+        if (request.status() != SwapRequestStatus.PENDING) {
+            throw new SwapRequestNotEditableException(request.id(), request.status());
+        }
     }
 
     private Integer resolveCycleNumber(UUID choreId, SwapType swapType, Integer requested) {
@@ -151,17 +249,5 @@ public class SwapRequestServiceImpl implements SwapRequestService {
                 || !choreClient.isParticipant(choreId, existing.receiverUserId())) {
             throw new NotInSameGroupException();
         }
-    }
-
-    private SwapRequestResponse toResponse(SwapRequest s) {
-        return new SwapRequestResponse(
-                s.id(),
-                s.choreId(),
-                s.initiatorUserId(),
-                s.receiverUserId(),
-                s.status(),
-                s.swapType(),
-                s.cycleNumber(),
-                s.createdAt());
     }
 }
