@@ -9,14 +9,19 @@ import genius.project.orchestrate.swap.SwapRequestStatus;
 import genius.project.orchestrate.swap.dto.SwapRequestRequest;
 import genius.project.orchestrate.swap.dto.SwapRequestResponse;
 import genius.project.orchestrate.swap.dto.SwapRequestStatusRequest;
+import genius.project.orchestrate.swap.dto.SwapRequestSummaryResponse;
+import genius.project.orchestrate.swap.dto.SwapRequestUpdateRequest;
 import genius.project.orchestrate.swap.exception.DuplicateSwapRequestException;
 import genius.project.orchestrate.swap.exception.InvalidSwapRequestRecipientException;
 import genius.project.orchestrate.swap.exception.InvalidSwapRequestStatusException;
 import genius.project.orchestrate.swap.exception.NotChoreParticipantException;
 import genius.project.orchestrate.swap.exception.NotInSameGroupException;
+import genius.project.orchestrate.swap.exception.NotSwapRequestInitiatorException;
 import genius.project.orchestrate.swap.exception.NotSwapRequestReceiverException;
+import genius.project.orchestrate.swap.exception.SwapRequestNotEditableException;
 import genius.project.orchestrate.swap.exception.SwapRequestNotFoundException;
 import genius.project.orchestrate.swap.internal.domain.SwapRequest;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -29,12 +34,14 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,6 +53,7 @@ class SwapRequestServiceImplTest {
     @Mock private CurrentUserProvider currentUserProvider;
     @Mock private ChoreClient choreClient;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private SwapRequestResponseMapper responseMapper;
 
     @InjectMocks
     private SwapRequestServiceImpl service;
@@ -55,6 +63,22 @@ class SwapRequestServiceImplTest {
     private static final UUID INITIATOR  = UUID.randomUUID();
     private static final UUID RECEIVER   = UUID.randomUUID();
     private static final LocalDateTime NOW = LocalDateTime.now();
+
+    @BeforeEach
+    void stubResponseMapper() {
+        lenient().when(responseMapper.toResponse(any(SwapRequest.class))).thenAnswer(invocation -> {
+            SwapRequest request = invocation.getArgument(0);
+            return new SwapRequestResponse(
+                    request.id(),
+                    request.choreId(),
+                    request.initiatorUserId(),
+                    request.receiverUserId(),
+                    request.status(),
+                    request.swapType(),
+                    request.cycleNumber(),
+                    request.createdAt());
+        });
+    }
 
     @Nested
     @DisplayName("createSwapRequest")
@@ -276,6 +300,7 @@ class SwapRequestServiceImplTest {
                     new SwapRequestStatusRequest(SwapRequestStatus.REJECTED));
 
             verify(eventPublisher, never()).publishEvent(any());
+            verify(choreClient, never()).isParticipant(any(), any());
         }
 
         @Test
@@ -340,6 +365,204 @@ class SwapRequestServiceImplTest {
 
             assertThat(result).hasSize(1);
             assertThat(result.getFirst().swapType()).isEqualTo(SwapType.PERMANENT);
+        }
+    }
+
+    @Nested
+    @DisplayName("getSwapRequest")
+    class GetOne {
+
+        @Test
+        @DisplayName("returns the request of this chore")
+        void returnsRequest() {
+            when(repository.findById(REQUEST_ID))
+                    .thenReturn(Optional.of(swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null)));
+
+            SwapRequestResponse result = service.getSwapRequest(CHORE_ID, REQUEST_ID);
+
+            assertThat(result.id()).isEqualTo(REQUEST_ID);
+        }
+
+        @Test
+        @DisplayName("not found: throws")
+        void notFound() {
+            when(repository.findById(REQUEST_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.getSwapRequest(CHORE_ID, REQUEST_ID))
+                    .isInstanceOf(SwapRequestNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("belongs to another chore: throws")
+        void otherChore() {
+            when(repository.findById(REQUEST_ID))
+                    .thenReturn(Optional.of(swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null)));
+
+            assertThatThrownBy(() -> service.getSwapRequest(UUID.randomUUID(), REQUEST_ID))
+                    .isInstanceOf(SwapRequestNotFoundException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("getSwapRequests with status filter")
+    class GetFiltered {
+
+        @Test
+        @DisplayName("delegates to the status query")
+        void delegatesToStatusQuery() {
+            when(repository.findByChoreIdAndStatus(CHORE_ID, SwapRequestStatus.PENDING))
+                    .thenReturn(List.of(swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null)));
+
+            assertThat(service.getSwapRequests(CHORE_ID, SwapRequestStatus.PENDING)).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("null status falls back to the full list")
+        void nullStatusFallsBack() {
+            when(repository.findByChoreId(CHORE_ID))
+                    .thenReturn(List.of(swapRequest(SwapRequestStatus.ACCEPTED, SwapType.PERMANENT, null)));
+
+            assertThat(service.getSwapRequests(CHORE_ID, null)).hasSize(1);
+        }
+    }
+
+    @Nested
+    @DisplayName("getSummary")
+    class Summary {
+
+        @Test
+        @DisplayName("sums the per-status counters")
+        void sumsCounters() {
+            when(repository.countGroupedByStatus(CHORE_ID)).thenReturn(Map.of(
+                    SwapRequestStatus.PENDING, 2L,
+                    SwapRequestStatus.ACCEPTED, 1L,
+                    SwapRequestStatus.REJECTED, 0L));
+
+            SwapRequestSummaryResponse summary = service.getSummary(CHORE_ID);
+
+            assertThat(summary.choreId()).isEqualTo(CHORE_ID);
+            assertThat(summary.total()).isEqualTo(3);
+            assertThat(summary.byStatus()).containsEntry(SwapRequestStatus.PENDING, 2L);
+        }
+    }
+
+    @Nested
+    @DisplayName("updateSwapRequest")
+    class Update {
+
+        @Test
+        @DisplayName("PERMANENT to TEMPORARY: stores the validated cycle")
+        void updatesTerms() {
+            when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
+            when(repository.findById(REQUEST_ID))
+                    .thenReturn(Optional.of(swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null)));
+            when(choreClient.currentCycleNumber(CHORE_ID)).thenReturn(2);
+            when(repository.update(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            SwapRequestResponse result = service.updateSwapRequest(CHORE_ID, REQUEST_ID,
+                    new SwapRequestUpdateRequest(SwapType.TEMPORARY, 5));
+
+            assertThat(result.swapType()).isEqualTo(SwapType.TEMPORARY);
+            assertThat(result.cycleNumber()).isEqualTo(5);
+            assertThat(result.status()).isEqualTo(SwapRequestStatus.PENDING);
+        }
+
+        @Test
+        @DisplayName("not the initiator: throws")
+        void notInitiator() {
+            when(currentUserProvider.getUserId()).thenReturn(RECEIVER);
+            when(repository.findById(REQUEST_ID))
+                    .thenReturn(Optional.of(swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null)));
+
+            assertThatThrownBy(() -> service.updateSwapRequest(CHORE_ID, REQUEST_ID,
+                    new SwapRequestUpdateRequest(SwapType.PERMANENT, null)))
+                    .isInstanceOf(NotSwapRequestInitiatorException.class)
+                    .extracting("errorCode").isEqualTo("NOT_SWAP_REQUEST_INITIATOR");
+
+            verify(repository, never()).update(any());
+        }
+
+        @Test
+        @DisplayName("already resolved: throws")
+        void notEditable() {
+            when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
+            when(repository.findById(REQUEST_ID))
+                    .thenReturn(Optional.of(swapRequest(SwapRequestStatus.ACCEPTED, SwapType.PERMANENT, null)));
+
+            assertThatThrownBy(() -> service.updateSwapRequest(CHORE_ID, REQUEST_ID,
+                    new SwapRequestUpdateRequest(SwapType.PERMANENT, null)))
+                    .isInstanceOf(SwapRequestNotEditableException.class)
+                    .extracting("errorCode").isEqualTo("SWAP_REQUEST_NOT_EDITABLE");
+
+            verify(repository, never()).update(any());
+        }
+
+        @Test
+        @DisplayName("TEMPORARY without cycleNumber: throws")
+        void missingCycle() {
+            when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
+            when(repository.findById(REQUEST_ID))
+                    .thenReturn(Optional.of(swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null)));
+
+            assertThatThrownBy(() -> service.updateSwapRequest(CHORE_ID, REQUEST_ID,
+                    new SwapRequestUpdateRequest(SwapType.TEMPORARY, null)))
+                    .isInstanceOf(InvalidCycleNumberException.class)
+                    .extracting("errorCode").isEqualTo("MISSING_CYCLE_NUMBER");
+        }
+
+        @Test
+        @DisplayName("request of another chore: throws")
+        void otherChore() {
+            when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
+            when(repository.findById(REQUEST_ID))
+                    .thenReturn(Optional.of(swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null)));
+
+            assertThatThrownBy(() -> service.updateSwapRequest(UUID.randomUUID(), REQUEST_ID,
+                    new SwapRequestUpdateRequest(SwapType.PERMANENT, null)))
+                    .isInstanceOf(SwapRequestNotFoundException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("deleteSwapRequest")
+    class Delete {
+
+        @Test
+        @DisplayName("initiator deletes a pending request")
+        void deletes() {
+            when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
+            when(repository.findById(REQUEST_ID))
+                    .thenReturn(Optional.of(swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null)));
+
+            service.deleteSwapRequest(CHORE_ID, REQUEST_ID);
+
+            verify(repository).deleteById(REQUEST_ID);
+        }
+
+        @Test
+        @DisplayName("not the initiator: throws")
+        void notInitiator() {
+            when(currentUserProvider.getUserId()).thenReturn(RECEIVER);
+            when(repository.findById(REQUEST_ID))
+                    .thenReturn(Optional.of(swapRequest(SwapRequestStatus.PENDING, SwapType.PERMANENT, null)));
+
+            assertThatThrownBy(() -> service.deleteSwapRequest(CHORE_ID, REQUEST_ID))
+                    .isInstanceOf(NotSwapRequestInitiatorException.class);
+
+            verify(repository, never()).deleteById(any());
+        }
+
+        @Test
+        @DisplayName("already resolved: throws")
+        void notEditable() {
+            when(currentUserProvider.getUserId()).thenReturn(INITIATOR);
+            when(repository.findById(REQUEST_ID))
+                    .thenReturn(Optional.of(swapRequest(SwapRequestStatus.REJECTED, SwapType.PERMANENT, null)));
+
+            assertThatThrownBy(() -> service.deleteSwapRequest(CHORE_ID, REQUEST_ID))
+                    .isInstanceOf(SwapRequestNotEditableException.class);
+
+            verify(repository, never()).deleteById(any());
         }
     }
 
