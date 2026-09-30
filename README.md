@@ -333,6 +333,24 @@ SwapOutcome                  → ApplyNow → save schedule
 Порядок перевірок у `HouseholdServiceImpl`: дім існує (404) → поточний користувач є учасником (403) →
 потрібне право чи роль власника (403) → бізнес-правило (400/409) → збереження.
 
+### Збереження в БД
+
+`User`, `Household`, `Membership` і `InvitationCode` зберігаються через JPA (`*/internal/persistence`).
+Адаптери `Jpa*Repository` позначені `@Primary` і реалізують ті самі інтерфейси репозиторіїв, тому сервіси
+не змінювались, а in-memory реалізації лишилися.
+
+| Зв'язок | Мапінг |
+|---|---|
+| `Household` 1:N `Membership` | `@OneToMany(cascade = ALL, orphanRemoval = true)` / `@ManyToOne(LAZY)` + `@MapsId` |
+| Права учасника | `@ElementCollection` → `membership_permissions` |
+| `InvitationCode` 1:1 `Household` | односпрямований `@OneToOne(LAZY)`: зворотна сторона не може бути LAZY і давала б N+1 |
+| `User` N:M `Household` | через `Membership` (`user_id`) |
+
+- Пошук за конвенцією імен: `findByEmail`, `findAllByOrderByCreatedAtAsc`, `findByHouseholdId`, `deleteByHouseholdId`.
+- `@Query` з `LEFT JOIN FETCH m.permissions`: учасники дому, членства користувача, одне членство — кожне читається одним SQL-запитом.
+- Видалення учасника — через `orphanRemoval`; видалення дому каскадно прибирає членства й права, код — через `ON DELETE CASCADE`.
+- Новий код запрошення замінює старий: старий видаляється з `flush()` до вставки, бо Hibernate виконує `INSERT` раніше за `DELETE`.
+
 ---
 
 ## Обробка помилок
@@ -456,6 +474,9 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 | `chore/internal/service/strategy/TemporarySwapStrategyTest` | TEMPORARY: ScheduleForCycle, MISSING_CYCLE_NUMBER, CYCLE_IN_PAST, same-user, not-in-group |
 | `chore/internal/service/RotationServiceImplTest` | Делегування стратегіям, apply ScheduledSwap при `advance` |
 | `swap/SwapRequestControllerTest` | CRUD-ендпоінти, `summary`, фільтр за статусом, 400/403/404/409/422 |
+| `user/internal/persistence/UserPersistenceTest` | Мапінг `users`, оновлення, сортування, унікальність email у БД і в сервісі |
+| `household/internal/persistence/HouseholdPersistenceTest` | Один SQL-запит на учасників / членства користувача / одне членство; каскад і `orphanRemoval`; заміна коду запрошення; FK на `users` |
+| `household/internal/HouseholdServiceIntegrationTest` | Повний сценарій `HouseholdService` на реальній БД: код → приєднання → передача власності → вихід → видалення дому |
 
 Матриці в тестах і в цьому файлі мають збігатися: якщо змінюєте одну — змінюйте й іншу.
 
@@ -479,6 +500,10 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 
 ## Відомі обмеження
 
+- **Household: N+1 у `GET /api/v1/users/{userId}/households`.** `listHouseholdsOfUser` читає членства одним
+  запитом, але кожен дім — окремим `findById`. Виправлення потребує зміни `HouseholdServiceImpl`.
+- **Household: сервіс без `@Transactional`.** Кожен виклик JPA-репозиторію йде в окремій транзакції, тож
+  багатокрокові операції (створення дому + членство власника, передача власності) не атомарні.
 - **Household: немає атомарності багатокрокових змін.** Передача власності, вихід останнього учасника
   та перевірка унікальності email чи коду запрошення виконуються кількома окремими зверненнями до
   in-memory сховища. З появою БД це закривається транзакцією та унікальними індексами.
