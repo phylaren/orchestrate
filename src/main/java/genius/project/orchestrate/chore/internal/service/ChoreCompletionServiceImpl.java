@@ -11,6 +11,8 @@ import genius.project.orchestrate.chore.internal.repository.ChoreCompletionStore
 import genius.project.orchestrate.chore.internal.repository.ChoreStore;
 import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -20,6 +22,8 @@ import java.util.UUID;
 
 @Service
 class ChoreCompletionServiceImpl implements ChoreCompletionService {
+
+    private static final Logger log = LoggerFactory.getLogger(ChoreCompletionServiceImpl.class);
 
     private final ChoreStore choreStore;
     private final ChoreCompletionStore completionStore;
@@ -59,6 +63,8 @@ class ChoreCompletionServiceImpl implements ChoreCompletionService {
             rotationService.advance(choreId);
         }
 
+        log.info("Completion marked: completionId={}, choreId={}, userId={}, status={}",
+                completion.id(), choreId, userId, status);
         return CompletionResponse.from(completion);
     }
 
@@ -114,6 +120,8 @@ class ChoreCompletionServiceImpl implements ChoreCompletionService {
             rotationService.advance(choreId);
         }
 
+        log.info("Completion {}: completionId={}, choreId={}, by={}",
+                targetStatus, completionId, choreId, confirmedByUserId);
         return CompletionResponse.from(resolved);
     }
 
@@ -134,6 +142,7 @@ class ChoreCompletionServiceImpl implements ChoreCompletionService {
         }
 
         completionStore.deleteById(completionId);
+        log.info("Completion deleted: completionId={}, choreId={}", completionId, choreId);
     }
 
     private Chore getChoreOrThrow(UUID choreId) {

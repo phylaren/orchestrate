@@ -12,6 +12,8 @@ import genius.project.orchestrate.chore.internal.repository.ChoreParticipantStor
 import genius.project.orchestrate.chore.internal.repository.ChoreStore;
 import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -21,6 +23,8 @@ import java.util.UUID;
 
 @Service
 class ChoreParticipantServiceImpl implements ChoreParticipantService, ChoreClient {
+
+    private static final Logger log = LoggerFactory.getLogger(ChoreParticipantServiceImpl.class);
 
     private final ChoreStore choreStore;
     private final ChoreParticipantStore participantStore;
@@ -47,6 +51,8 @@ class ChoreParticipantServiceImpl implements ChoreParticipantService, ChoreClien
         ChoreParticipant participant = new ChoreParticipant(choreId, userId, Instant.now(), addedByAdmin);
         participantStore.save(participant);
         rotationService.addParticipant(choreId, userId);
+        log.info("Participant joined: choreId={}, userId={}, addedByAdmin={}",
+                choreId, userId, addedByAdmin);
 
         return ParticipantResponse.from(participant);
     }
@@ -61,6 +67,7 @@ class ChoreParticipantServiceImpl implements ChoreParticipantService, ChoreClien
 
         participantStore.deleteByChoreIdAndUserId(choreId, userId);
         rotationService.removeParticipant(choreId, userId);
+        log.info("Participant left: choreId={}, userId={}", choreId, userId);
     }
 
     @Override
