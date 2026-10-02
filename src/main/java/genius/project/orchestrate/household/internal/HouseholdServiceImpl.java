@@ -22,6 +22,8 @@ import genius.project.orchestrate.household.internal.domain.Membership;
 import genius.project.orchestrate.household.internal.domain.UserHousehold;
 import genius.project.orchestrate.identity.CurrentUserProvider;
 import genius.project.orchestrate.user.client.UserClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -34,6 +36,8 @@ import java.util.UUID;
 
 @Service
 public class HouseholdServiceImpl implements HouseholdService {
+
+    private static final Logger log = LoggerFactory.getLogger(HouseholdServiceImpl.class);
 
     static final Duration INVITATION_CODE_TTL = Duration.ofDays(7);
     static final int MAX_CODE_GENERATION_ATTEMPTS = 5;
@@ -68,6 +72,7 @@ public class HouseholdServiceImpl implements HouseholdService {
         Household household = householdRepository.save(
                 new Household(UUID.randomUUID(), name.trim(), ownerId, now));
         membershipRepository.save(new Membership(household.id(), ownerId, MembershipPermission.all(), now));
+        log.info("Household created: householdId={}, ownerId={}", household.id(), ownerId);
         return household;
     }
 
@@ -80,9 +85,11 @@ public class HouseholdServiceImpl implements HouseholdService {
 
     @Override
     public void deleteHousehold(UUID householdId) {
+        UUID actorId = currentUserProvider.getUserId();
         Household household = getHouseholdOrThrow(householdId);
-        requireOwner(household, currentUserProvider.getUserId());
+        requireOwner(household, actorId);
         removeHouseholdCompletely(householdId);
+        log.info("Household deleted: householdId={}, by={}", householdId, actorId);
     }
 
     @Override
@@ -99,6 +106,8 @@ public class HouseholdServiceImpl implements HouseholdService {
 
         Household updated = householdRepository.save(household.withOwner(newOwnerUserId));
         membershipRepository.save(newOwnerMembership.withPermissions(MembershipPermission.all()));
+        log.info("Ownership transferred: householdId={}, from={}, to={}",
+                householdId, actorId, newOwnerUserId);
         return updated;
     }
 
@@ -127,6 +136,7 @@ public class HouseholdServiceImpl implements HouseholdService {
 
         if (actorId.equals(userId)) {
             leave(household, actorId);
+            log.info("Member left household: householdId={}, userId={}", householdId, actorId);
             return;
         }
 
@@ -137,6 +147,8 @@ public class HouseholdServiceImpl implements HouseholdService {
         membershipRepository.find(householdId, userId)
                 .orElseThrow(() -> new MembershipNotFoundException(householdId, userId));
         membershipRepository.delete(householdId, userId);
+        log.info("Member removed: householdId={}, removedUserId={}, by={}",
+                householdId, userId, actorId);
     }
 
     @Override
@@ -154,7 +166,10 @@ public class HouseholdServiceImpl implements HouseholdService {
         }
         Membership target = membershipRepository.find(householdId, userId)
                 .orElseThrow(() -> new MembershipNotFoundException(householdId, userId));
-        return membershipRepository.save(target.withPermissions(permissions));
+        Membership updated = membershipRepository.save(target.withPermissions(permissions));
+        log.info("Permissions updated: householdId={}, userId={}, by={}, permissions={}",
+                householdId, userId, actorId, updated.permissions());
+        return updated;
     }
 
     @Override
@@ -164,8 +179,11 @@ public class HouseholdServiceImpl implements HouseholdService {
         requirePermission(household, requireMembership(householdId, actorId), MembershipPermission.INVITE_MEMBERS);
 
         Instant now = Instant.now();
-        return invitationCodeRepository.save(new InvitationCode(
+        InvitationCode code = invitationCodeRepository.save(new InvitationCode(
                 generateUniqueCode(), householdId, actorId, now, now.plus(INVITATION_CODE_TTL)));
+        // The code value itself is never logged: it grants access to the household.
+        log.info("Invitation code created: householdId={}, by={}", householdId, actorId);
+        return code;
     }
 
     @Override
@@ -181,14 +199,16 @@ public class HouseholdServiceImpl implements HouseholdService {
 
     @Override
     public void revokeInvitationCode(UUID householdId) {
+        UUID actorId = currentUserProvider.getUserId();
         Household household = getHouseholdOrThrow(householdId);
-        requirePermission(household, requireMembership(householdId, currentUserProvider.getUserId()),
+        requirePermission(household, requireMembership(householdId, actorId),
                 MembershipPermission.INVITE_MEMBERS);
 
         if (invitationCodeRepository.findByHouseholdId(householdId).isEmpty()) {
             throw new InvitationCodeNotFoundException(householdId);
         }
         invitationCodeRepository.deleteByHouseholdId(householdId);
+        log.info("Invitation code revoked: householdId={}, by={}", householdId, actorId);
     }
 
     @Override
@@ -207,8 +227,10 @@ public class HouseholdServiceImpl implements HouseholdService {
         if (membershipRepository.find(householdId, userId).isPresent()) {
             throw new AlreadyHouseholdMemberException(householdId, userId);
         }
-        return membershipRepository.save(new Membership(
+        Membership membership = membershipRepository.save(new Membership(
                 householdId, userId, MembershipPermission.defaultForNewMember(), Instant.now()));
+        log.info("User joined via invitation: householdId={}, userId={}", householdId, userId);
+        return membership;
     }
 
     @Override
