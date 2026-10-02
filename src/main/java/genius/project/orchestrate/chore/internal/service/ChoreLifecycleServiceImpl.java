@@ -6,6 +6,8 @@ import genius.project.orchestrate.chore.internal.domain.Chore;
 import genius.project.orchestrate.chore.internal.domain.ChoreWithParticipants;
 import genius.project.orchestrate.chore.internal.repository.ChoreStore;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -15,6 +17,8 @@ import java.util.UUID;
 
 @Service
 class ChoreLifecycleServiceImpl implements ChoreLifecycleService {
+
+    private static final Logger log = LoggerFactory.getLogger(ChoreLifecycleServiceImpl.class);
 
     private final ChoreStore choreStore;
 
@@ -29,6 +33,7 @@ class ChoreLifecycleServiceImpl implements ChoreLifecycleService {
                 UUID.randomUUID(), householdId, name, description,
                 recurrenceDays, requiresConfirmation, Instant.now());
         Chore saved = choreStore.save(chore);
+        log.info("Chore created: choreId={}, householdId={}", saved.id(), saved.householdId());
         return ChoreResponse.from(saved, true);
     }
 
@@ -56,6 +61,7 @@ class ChoreLifecycleServiceImpl implements ChoreLifecycleService {
                 current.id(), current.householdId(), name, description,
                 recurrenceDays, requiresConfirmation, current.createdAt());
         Chore saved = choreStore.save(updated);
+        log.info("Chore updated: choreId={}, householdId={}", saved.id(), saved.householdId());
         return ChoreResponse.from(saved, found.needsAttention());
     }
 
@@ -65,6 +71,7 @@ class ChoreLifecycleServiceImpl implements ChoreLifecycleService {
             throw ResourceNotFoundException.of("chore", choreId);
         }
         choreStore.deleteById(choreId);
+        log.info("Chore deleted: choreId={}", choreId);
     }
 
     private ChoreWithParticipants getOrThrow(UUID choreId) {

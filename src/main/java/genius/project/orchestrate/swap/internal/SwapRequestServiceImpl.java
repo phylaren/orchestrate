@@ -22,6 +22,8 @@ import genius.project.orchestrate.swap.exception.NotSwapRequestReceiverException
 import genius.project.orchestrate.swap.exception.SwapRequestNotEditableException;
 import genius.project.orchestrate.swap.exception.SwapRequestNotFoundException;
 import genius.project.orchestrate.swap.internal.domain.SwapRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +35,8 @@ import java.util.UUID;
 
 @Service
 public class SwapRequestServiceImpl implements SwapRequestService {
+
+    private static final Logger log = LoggerFactory.getLogger(SwapRequestServiceImpl.class);
 
     private static final int MAX_CYCLE_LOOKAHEAD = 10;
 
@@ -119,6 +123,8 @@ public class SwapRequestServiceImpl implements SwapRequestService {
                 cycleNumber,
                 LocalDateTime.now()));
 
+        log.info("Swap request created: requestId={}, choreId={}, initiatorId={}, receiverId={}, swapType={}",
+                saved.id(), choreId, initiatorId, receiverId, swapType);
         return responseMapper.toResponse(saved);
     }
 
@@ -145,6 +151,8 @@ public class SwapRequestServiceImpl implements SwapRequestService {
                 cycleNumber,
                 existing.createdAt()));
 
+        log.info("Swap request updated: requestId={}, choreId={}, by={}, swapType={}, cycleNumber={}",
+                requestId, choreId, currentUserId, request.swapType(), cycleNumber);
         return responseMapper.toResponse(updated);
     }
 
@@ -181,6 +189,9 @@ public class SwapRequestServiceImpl implements SwapRequestService {
                 existing.cycleNumber(),
                 existing.createdAt()));
 
+        log.info("Swap request {}: requestId={}, choreId={}, by={}",
+                targetStatus, requestId, choreId, currentUserId);
+
         if (updated.status() == SwapRequestStatus.ACCEPTED) {
             eventPublisher.publishEvent(new TurnSwapRequestedEvent(
                     updated.choreId(),
@@ -203,6 +214,7 @@ public class SwapRequestServiceImpl implements SwapRequestService {
         requirePending(existing);
 
         repository.deleteById(existing.id());
+        log.info("Swap request deleted: requestId={}, choreId={}, by={}", requestId, choreId, currentUserId);
     }
 
     private SwapRequest requireRequestOfChore(UUID choreId, UUID requestId) {

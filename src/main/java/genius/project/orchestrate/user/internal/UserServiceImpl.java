@@ -4,6 +4,8 @@ import genius.project.orchestrate.user.UserService;
 import genius.project.orchestrate.user.exception.EmailAlreadyTakenException;
 import genius.project.orchestrate.user.exception.UserNotFoundException;
 import genius.project.orchestrate.user.internal.domain.User;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -14,6 +16,8 @@ import java.util.UUID;
 
 @Service
 public class UserServiceImpl implements UserService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
 
     private final UserRepository repository;
 
@@ -28,7 +32,9 @@ public class UserServiceImpl implements UserService {
             throw new EmailAlreadyTakenException(normalizedEmail);
         }
         User user = new User(UUID.randomUUID(), displayName.trim(), normalizedEmail, Instant.now());
-        return repository.save(user);
+        User saved = repository.save(user);
+        log.info("User created: userId={}", saved.id());
+        return saved;
     }
 
     @Override

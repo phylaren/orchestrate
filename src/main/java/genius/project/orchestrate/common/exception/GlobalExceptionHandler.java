@@ -3,6 +3,8 @@ package genius.project.orchestrate.common.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.jspecify.annotations.NullMarked;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -26,6 +28,8 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     private static final String PROBLEM_TYPE_BASE = "https://orchestrate.example.com/problems/";
 
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -37,6 +41,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(BusinessRuleViolationException.class)
     public ResponseEntity<ProblemDetail> handleBusinessRule(BusinessRuleViolationException ex, HttpServletRequest request) {
+        // Expected rejection — WARN without the exception so frequency is visible without stack-trace noise.
+        log.warn("{}: {}", ex.getErrorCode(), ex.getMessage());
         ProblemDetail body = baseProblem(HttpStatus.CONFLICT, "Business rule violation", ex.getMessage(), request);
         body.setProperty("code", ex.getErrorCode());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
@@ -44,6 +50,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(InvalidStateTransitionException.class)
     public ResponseEntity<ProblemDetail> handleInvalidStateTransition(InvalidStateTransitionException ex, HttpServletRequest request) {
+        log.warn("{}: {}", ex.getErrorCode(), ex.getMessage());
         ProblemDetail body = baseProblem(HttpStatus.UNPROCESSABLE_CONTENT, "Invalid state transition", ex.getMessage(), request);
         body.setProperty("code", ex.getErrorCode());
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(body);
@@ -66,7 +73,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
-
         List<Map<String, String>> errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(this::toFieldError)
                 .toList();
@@ -85,7 +91,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(
             HttpMessageNotReadableException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
-
         ProblemDetail body = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
                 "Request body is malformed or contains fields that are not allowed for this resource.");
         body.setTitle("Malformed request body");
@@ -99,6 +104,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException ex,
                                                              HttpServletRequest request) {
+        log.warn("Data integrity violation on {}: {}",
+                request.getRequestURI(), ex.getMostSpecificCause().getMessage());
         ProblemDetail body = baseProblem(HttpStatus.CONFLICT, "Data integrity violation",
                 "The request violates a database constraint.", request);
         body.setProperty("code", "DATA_INTEGRITY_VIOLATION");
@@ -107,6 +114,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleUnexpected(Exception ex, HttpServletRequest request) {
+        // Pass ex as the last argument so SLF4J prints the stack trace.
+        log.error("Unhandled exception on {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         ProblemDetail body = baseProblem(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error",
                 "An unexpected error occurred while processing the request.", request);
         body.setProperty("code", "INTERNAL_ERROR");
@@ -115,6 +124,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<ProblemDetail> handleValidation(ValidationException ex, HttpServletRequest request) {
+        log.warn("{}: {}", ex.getErrorCode(), ex.getMessage());
         ProblemDetail body = baseProblem(HttpStatus.BAD_REQUEST, "Validation failed", ex.getMessage(), request);
         body.setProperty("code", ex.getErrorCode());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
@@ -122,6 +132,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ProblemDetail> handleForbidden(ForbiddenException ex, HttpServletRequest request) {
+        log.warn("{}: {}", ex.getErrorCode(), ex.getMessage());
         ProblemDetail body = baseProblem(HttpStatus.FORBIDDEN, "Forbidden", ex.getMessage(), request);
         body.setProperty("code", ex.getErrorCode());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
