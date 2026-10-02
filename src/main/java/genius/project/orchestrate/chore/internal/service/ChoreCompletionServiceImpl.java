@@ -11,6 +11,7 @@ import genius.project.orchestrate.chore.internal.repository.ChoreCompletionStore
 import genius.project.orchestrate.chore.internal.repository.ChoreStore;
 import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
+import genius.project.orchestrate.identity.CurrentUserProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -28,17 +29,21 @@ class ChoreCompletionServiceImpl implements ChoreCompletionService {
     private final ChoreStore choreStore;
     private final ChoreCompletionStore completionStore;
     private final RotationService rotationService;
+    private final CurrentUserProvider currentUserProvider;
 
     ChoreCompletionServiceImpl(ChoreStore choreStore,
                                ChoreCompletionStore completionStore,
-                               RotationService rotationService) {
+                               RotationService rotationService,
+                               CurrentUserProvider currentUserProvider) {
         this.choreStore = choreStore;
         this.completionStore = completionStore;
         this.rotationService = rotationService;
+        this.currentUserProvider = currentUserProvider;
     }
 
     @Override
-    public CompletionResponse markCompleted(UUID choreId, UUID userId) {
+    public CompletionResponse markCompleted(UUID choreId) {
+        UUID userId = currentUserProvider.getUserId();
         Chore chore = getChoreOrThrow(choreId);
 
         UUID responsible = rotationService.currentResponsible(choreId)
@@ -87,8 +92,8 @@ class ChoreCompletionServiceImpl implements ChoreCompletionService {
     }
 
     @Override
-    public CompletionResponse decideConfirmation(UUID choreId, UUID completionId,
-                                                 UUID confirmedByUserId, boolean approved) {
+    public CompletionResponse decideConfirmation(UUID choreId, UUID completionId, boolean approved) {
+        UUID confirmedByUserId = currentUserProvider.getUserId();
         getChoreOrThrow(choreId);
 
         ChoreCompletion completion = completionStore.findById(completionId)
