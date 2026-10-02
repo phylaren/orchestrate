@@ -6,6 +6,7 @@ import genius.project.orchestrate.chore.internal.domain.Chore;
 import genius.project.orchestrate.chore.internal.domain.ChoreWithParticipants;
 import genius.project.orchestrate.chore.internal.repository.ChoreStore;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
+import genius.project.orchestrate.identity.CurrentUserProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -21,19 +22,24 @@ class ChoreLifecycleServiceImpl implements ChoreLifecycleService {
     private static final Logger log = LoggerFactory.getLogger(ChoreLifecycleServiceImpl.class);
 
     private final ChoreStore choreStore;
+    private final CurrentUserProvider currentUserProvider;
 
-    ChoreLifecycleServiceImpl(ChoreStore choreStore) {
+    ChoreLifecycleServiceImpl(ChoreStore choreStore,
+                              CurrentUserProvider currentUserProvider) {
         this.choreStore = choreStore;
+        this.currentUserProvider = currentUserProvider;
     }
 
     @Override
     public ChoreResponse createChore(UUID householdId, String name, String description,
                                      int recurrenceDays, boolean requiresConfirmation) {
+        UUID actorId = currentUserProvider.getUserId();
         Chore chore = new Chore(
                 UUID.randomUUID(), householdId, name, description,
                 recurrenceDays, requiresConfirmation, Instant.now());
         Chore saved = choreStore.save(chore);
-        log.info("Chore created: choreId={}, householdId={}", saved.id(), saved.householdId());
+        log.info("Chore created: choreId={}, householdId={}, by={}",
+                saved.id(), saved.householdId(), actorId);
         return ChoreResponse.from(saved, true);
     }
 
@@ -55,13 +61,15 @@ class ChoreLifecycleServiceImpl implements ChoreLifecycleService {
     public ChoreResponse updateChore(UUID choreId, String name, String description,
                                      int recurrenceDays, boolean requiresConfirmation) {
         ChoreWithParticipants found = getOrThrow(choreId);
+        UUID actorId = currentUserProvider.getUserId();
         Chore current = found.chore();
 
         Chore updated = new Chore(
                 current.id(), current.householdId(), name, description,
                 recurrenceDays, requiresConfirmation, current.createdAt());
         Chore saved = choreStore.save(updated);
-        log.info("Chore updated: choreId={}, householdId={}", saved.id(), saved.householdId());
+        log.info("Chore updated: choreId={}, householdId={}, by={}",
+                saved.id(), saved.householdId(), actorId);
         return ChoreResponse.from(saved, found.needsAttention());
     }
 
@@ -70,8 +78,9 @@ class ChoreLifecycleServiceImpl implements ChoreLifecycleService {
         if (choreStore.findById(choreId).isEmpty()) {
             throw ResourceNotFoundException.of("chore", choreId);
         }
+        UUID actorId = currentUserProvider.getUserId();
         choreStore.deleteById(choreId);
-        log.info("Chore deleted: choreId={}", choreId);
+        log.info("Chore deleted: choreId={}, by={}", choreId, actorId);
     }
 
     private ChoreWithParticipants getOrThrow(UUID choreId) {

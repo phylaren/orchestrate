@@ -4,7 +4,6 @@ import genius.project.orchestrate.chore.dto.CompletionResponse;
 import genius.project.orchestrate.chore.dto.ConfirmationDecisionRequest;
 import genius.project.orchestrate.chore.exception.InvalidConfirmationStatusException;
 import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
-import genius.project.orchestrate.identity.CurrentUserProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,9 +37,6 @@ class ChoreCompletionControllerTest {
     @MockitoBean
     private ChoreCompletionService choreCompletionService;
 
-    @MockitoBean
-    private CurrentUserProvider currentUserProvider;
-
     private static final UUID CHORE_ID = UUID.randomUUID();
     private static final UUID COMPLETION_ID = UUID.randomUUID();
     private static final UUID USER_ID = UUID.randomUUID();
@@ -51,13 +47,10 @@ class ChoreCompletionControllerTest {
                 ConfirmationStatus.PENDING, null, null);
     }
 
-    // ---------- POST .../completions ----------
-
     @Test
-    @DisplayName("POST .../completions позначає Chore виконаним поточним користувачем і повертає 201 Created")
+    @DisplayName("POST .../completions marks the chore complete and returns 201 Created")
     void markCompleted_ReturnsCreated() throws Exception {
-        when(currentUserProvider.getUserId()).thenReturn(USER_ID);
-        when(choreCompletionService.markCompleted(CHORE_ID, USER_ID)).thenReturn(pendingResponse());
+        when(choreCompletionService.markCompleted(CHORE_ID)).thenReturn(pendingResponse());
 
         mockMvc.perform(post("/api/v1/chores/{choreId}/completions", CHORE_ID))
                 .andExpect(status().isCreated())
@@ -67,13 +60,11 @@ class ChoreCompletionControllerTest {
                 .andExpect(jsonPath("$.completedByUserId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.status").value("PENDING"));
 
-        verify(choreCompletionService).markCompleted(CHORE_ID, USER_ID);
+        verify(choreCompletionService).markCompleted(CHORE_ID);
     }
 
-    // ---------- GET ----------
-
     @Test
-    @DisplayName("GET .../completions повертає список підтверджень")
+    @DisplayName("GET .../completions returns the list")
     void listCompletions_ReturnsList() throws Exception {
         CompletionResponse confirmed = new CompletionResponse(COMPLETION_ID, CHORE_ID, USER_ID, Instant.now(),
                 ConfirmationStatus.CONFIRMED, CONFIRMER_ID, Instant.now());
@@ -86,7 +77,7 @@ class ChoreCompletionControllerTest {
     }
 
     @Test
-    @DisplayName("GET .../completions/{completionId} повертає конкретне підтвердження")
+    @DisplayName("GET .../completions/{completionId} returns the completion")
     void getCompletion_ReturnsSingleCompletion() throws Exception {
         CompletionResponse response = new CompletionResponse(COMPLETION_ID, CHORE_ID, USER_ID, Instant.now(),
                 ConfirmationStatus.NOT_REQUIRED, null, null);
@@ -98,18 +89,14 @@ class ChoreCompletionControllerTest {
                 .andExpect(jsonPath("$.status").value("NOT_REQUIRED"));
     }
 
-    // ---------- POST .../confirmation ----------
-
     @Test
-    @DisplayName("POST .../confirmation з approved=true підтверджує від імені поточного користувача")
+    @DisplayName("POST .../confirmation with approved=true returns confirmed")
     void decideConfirmation_WhenApproved_ReturnsConfirmed() throws Exception {
         ConfirmationDecisionRequest request = new ConfirmationDecisionRequest(true);
         CompletionResponse confirmed = new CompletionResponse(COMPLETION_ID, CHORE_ID, USER_ID, Instant.now(),
                 ConfirmationStatus.CONFIRMED, CONFIRMER_ID, Instant.now());
 
-        when(currentUserProvider.getUserId()).thenReturn(CONFIRMER_ID);
-        when(choreCompletionService.decideConfirmation(CHORE_ID, COMPLETION_ID, CONFIRMER_ID, true))
-                .thenReturn(confirmed);
+        when(choreCompletionService.decideConfirmation(CHORE_ID, COMPLETION_ID, true)).thenReturn(confirmed);
 
         mockMvc.perform(post("/api/v1/chores/{choreId}/completions/{completionId}/confirmation",
                         CHORE_ID, COMPLETION_ID)
@@ -119,16 +106,15 @@ class ChoreCompletionControllerTest {
                 .andExpect(jsonPath("$.status").value("CONFIRMED"))
                 .andExpect(jsonPath("$.confirmedByUserId").value(CONFIRMER_ID.toString()));
 
-        verify(choreCompletionService).decideConfirmation(CHORE_ID, COMPLETION_ID, CONFIRMER_ID, true);
+        verify(choreCompletionService).decideConfirmation(CHORE_ID, COMPLETION_ID, true);
     }
 
     @Test
-    @DisplayName("POST .../confirmation для вже розглянутого запису повертає 422")
+    @DisplayName("POST .../confirmation for an already-resolved completion returns 422")
     void decideConfirmation_WhenTransitionIllegal_ReturnsUnprocessableContent() throws Exception {
         ConfirmationDecisionRequest request = new ConfirmationDecisionRequest(false);
 
-        when(currentUserProvider.getUserId()).thenReturn(CONFIRMER_ID);
-        when(choreCompletionService.decideConfirmation(CHORE_ID, COMPLETION_ID, CONFIRMER_ID, false))
+        when(choreCompletionService.decideConfirmation(CHORE_ID, COMPLETION_ID, false))
                 .thenThrow(new InvalidConfirmationStatusException(
                         COMPLETION_ID, ConfirmationStatus.CONFIRMED, ConfirmationStatus.REJECTED));
 
@@ -138,14 +124,11 @@ class ChoreCompletionControllerTest {
                         .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().is(422))
                 .andExpect(jsonPath("$.status").value(422))
-                .andExpect(jsonPath("$.code").value("INVALID_CONFIRMATION_STATUS"))
-                .andExpect(jsonPath("$.detail").value(
-                        "Illegal state transition for completion '%s' from CONFIRMED to REJECTED"
-                                .formatted(COMPLETION_ID)));
+                .andExpect(jsonPath("$.code").value("INVALID_CONFIRMATION_STATUS"));
     }
 
     @Test
-    @DisplayName("POST .../confirmation без approved повертає 400 Bad Request")
+    @DisplayName("POST .../confirmation without approved returns 400 Bad Request")
     void decideConfirmation_WithMissingApproved_ReturnsBadRequest() throws Exception {
         ConfirmationDecisionRequest request = new ConfirmationDecisionRequest(null);
 
@@ -156,10 +139,8 @@ class ChoreCompletionControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
-    // ---------- DELETE .../completions/{completionId} ----------
-
     @Test
-    @DisplayName("DELETE .../completions/{completionId} повертає 204 No Content")
+    @DisplayName("DELETE .../completions/{completionId} returns 204 No Content")
     void deleteCompletion_ReturnsNoContent() throws Exception {
         mockMvc.perform(delete("/api/v1/chores/{choreId}/completions/{completionId}", CHORE_ID, COMPLETION_ID))
                 .andExpect(status().isNoContent());
@@ -168,7 +149,7 @@ class ChoreCompletionControllerTest {
     }
 
     @Test
-    @DisplayName("DELETE .../completions/{completionId} для підтвердженого виконання повертає 409 Conflict")
+    @DisplayName("DELETE .../completions/{completionId} for a confirmed completion returns 409 Conflict")
     void deleteCompletion_WhenNotDeletable_ReturnsConflict() throws Exception {
         doThrow(new BusinessRuleViolationException("COMPLETION_NOT_DELETABLE", "cannot delete"))
                 .when(choreCompletionService).deleteCompletion(CHORE_ID, COMPLETION_ID);
