@@ -1,5 +1,10 @@
 package genius.project.orchestrate.swap;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = """
+        Статус запиту на обмін: PENDING — очікує відповіді отримувача; \
+        ACCEPTED — прийнято; REJECTED — відхилено. З PENDING можливий перехід лише в ACCEPTED або REJECTED.""")
 public enum SwapRequestStatus {
     PENDING,
     ACCEPTED,
