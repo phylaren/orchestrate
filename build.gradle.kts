@@ -29,6 +29,8 @@ dependencies {
     implementation("org.springframework.modulith:spring-modulith-starter-core")
     implementation("org.springframework.modulith:spring-modulith-events-api")
 
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
+
     implementation("org.mapstruct:mapstruct:1.6.3")
     annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
 
