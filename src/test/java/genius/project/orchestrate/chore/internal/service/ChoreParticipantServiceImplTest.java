@@ -9,6 +9,7 @@ import genius.project.orchestrate.chore.internal.repository.ChoreParticipantStor
 import genius.project.orchestrate.chore.internal.repository.ChoreStore;
 import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
+import genius.project.orchestrate.identity.CurrentUserProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ class ChoreParticipantServiceImplTest {
     @Mock private ChoreStore choreStore;
     @Mock private ChoreParticipantStore participantStore;
     @Mock private RotationService rotationService;
+    @Mock private CurrentUserProvider currentUserProvider;
 
     @InjectMocks
     private ChoreParticipantServiceImpl service;
@@ -43,6 +45,7 @@ class ChoreParticipantServiceImplTest {
     private static final UUID HOUSEHOLD_ID = UUID.randomUUID();
     private static final UUID USER_A = UUID.randomUUID();
     private static final UUID USER_B = UUID.randomUUID();
+    private static final UUID ADMIN = UUID.randomUUID();
 
     @Nested
     @DisplayName("joinChore")
@@ -51,23 +54,26 @@ class ChoreParticipantServiceImplTest {
         @Test
         @DisplayName("saves and delegates to rotation")
         void savesAndDelegates() {
+            when(currentUserProvider.getUserId()).thenReturn(USER_A);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore()));
             when(participantStore.existsByChoreIdAndUserId(CHORE_ID, USER_A)).thenReturn(false);
             when(participantStore.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            ParticipantResponse result = service.joinChore(CHORE_ID, USER_A, false);
+            ParticipantResponse result = service.joinChore(CHORE_ID);
 
             verify(rotationService).addParticipant(CHORE_ID, USER_A);
             assertThat(result.userId()).isEqualTo(USER_A);
+            assertThat(result.addedByAdmin()).isFalse();
         }
 
         @Test
         @DisplayName("duplicate: throws")
         void duplicate() {
+            when(currentUserProvider.getUserId()).thenReturn(USER_A);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore()));
             when(participantStore.existsByChoreIdAndUserId(CHORE_ID, USER_A)).thenReturn(true);
 
-            assertThatThrownBy(() -> service.joinChore(CHORE_ID, USER_A, false))
+            assertThatThrownBy(() -> service.joinChore(CHORE_ID))
                     .isInstanceOf(BusinessRuleViolationException.class)
                     .extracting("errorCode").isEqualTo("ALREADY_PARTICIPANT");
 
@@ -76,16 +82,50 @@ class ChoreParticipantServiceImplTest {
     }
 
     @Nested
-    @DisplayName("leaveChore")
-    class Leave {
+    @DisplayName("addParticipant")
+    class AddParticipant {
 
         @Test
-        @DisplayName("deletes and delegates")
-        void deletesAndDelegates() {
+        @DisplayName("admin adds another user; actor resolved from provider")
+        void adminAdds() {
+            when(currentUserProvider.getUserId()).thenReturn(ADMIN);
+            when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore()));
+            when(participantStore.existsByChoreIdAndUserId(CHORE_ID, USER_A)).thenReturn(false);
+            when(participantStore.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            ParticipantResponse result = service.addParticipant(CHORE_ID, USER_A);
+
+            verify(rotationService).addParticipant(CHORE_ID, USER_A);
+            assertThat(result.userId()).isEqualTo(USER_A);
+            assertThat(result.addedByAdmin()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("removeMember")
+    class RemoveMember {
+
+        @Test
+        @DisplayName("self-leave: actor removes themselves")
+        void selfLeave() {
+            when(currentUserProvider.getUserId()).thenReturn(USER_A);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore()));
             when(participantStore.existsByChoreIdAndUserId(CHORE_ID, USER_A)).thenReturn(true);
 
-            service.leaveChore(CHORE_ID, USER_A);
+            service.removeMember(CHORE_ID, USER_A);
+
+            verify(participantStore).deleteByChoreIdAndUserId(CHORE_ID, USER_A);
+            verify(rotationService).removeParticipant(CHORE_ID, USER_A);
+        }
+
+        @Test
+        @DisplayName("admin removes another member")
+        void adminRemoves() {
+            when(currentUserProvider.getUserId()).thenReturn(ADMIN);
+            when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore()));
+            when(participantStore.existsByChoreIdAndUserId(CHORE_ID, USER_A)).thenReturn(true);
+
+            service.removeMember(CHORE_ID, USER_A);
 
             verify(participantStore).deleteByChoreIdAndUserId(CHORE_ID, USER_A);
             verify(rotationService).removeParticipant(CHORE_ID, USER_A);
@@ -94,10 +134,11 @@ class ChoreParticipantServiceImplTest {
         @Test
         @DisplayName("unknown participant: throws")
         void unknown() {
+            when(currentUserProvider.getUserId()).thenReturn(USER_A);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore()));
             when(participantStore.existsByChoreIdAndUserId(CHORE_ID, USER_A)).thenReturn(false);
 
-            assertThatThrownBy(() -> service.leaveChore(CHORE_ID, USER_A))
+            assertThatThrownBy(() -> service.removeMember(CHORE_ID, USER_A))
                     .isInstanceOf(ResourceNotFoundException.class);
         }
     }

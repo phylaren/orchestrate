@@ -10,6 +10,7 @@ import genius.project.orchestrate.chore.internal.repository.ChoreCompletionStore
 import genius.project.orchestrate.chore.internal.repository.ChoreStore;
 import genius.project.orchestrate.common.exception.BusinessRuleViolationException;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
+import genius.project.orchestrate.identity.CurrentUserProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,9 @@ class ChoreCompletionServiceImplTest {
     @Mock
     private RotationService rotationService;
 
+    @Mock
+    private CurrentUserProvider currentUserProvider;
+
     @InjectMocks
     private ChoreCompletionServiceImpl service;
 
@@ -63,11 +67,12 @@ class ChoreCompletionServiceImplTest {
         @Test
         @DisplayName("chore without confirmation: status NOT_REQUIRED, rotation advances")
         void withoutConfirmation_AdvancesRotation() {
+            when(currentUserProvider.getUserId()).thenReturn(USER_A);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(false)));
             when(rotationService.currentResponsible(CHORE_ID)).thenReturn(Optional.of(USER_A));
             when(completionStore.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            CompletionResponse result = service.markCompleted(CHORE_ID, USER_A);
+            CompletionResponse result = service.markCompleted(CHORE_ID);
 
             assertThat(result.status()).isEqualTo(ConfirmationStatus.NOT_REQUIRED);
             verify(rotationService).advance(CHORE_ID);
@@ -76,11 +81,12 @@ class ChoreCompletionServiceImplTest {
         @Test
         @DisplayName("chore with confirmation: status PENDING, rotation does not advance")
         void withConfirmation_StatusPending_NoRotation() {
+            when(currentUserProvider.getUserId()).thenReturn(USER_A);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(true)));
             when(rotationService.currentResponsible(CHORE_ID)).thenReturn(Optional.of(USER_A));
             when(completionStore.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            CompletionResponse result = service.markCompleted(CHORE_ID, USER_A);
+            CompletionResponse result = service.markCompleted(CHORE_ID);
 
             assertThat(result.status()).isEqualTo(ConfirmationStatus.PENDING);
             verify(rotationService, never()).advance(any());
@@ -89,10 +95,11 @@ class ChoreCompletionServiceImplTest {
         @Test
         @DisplayName("non-responsible user throws BusinessRuleViolationException")
         void nonResponsible_Throws() {
+            when(currentUserProvider.getUserId()).thenReturn(USER_B);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(false)));
             when(rotationService.currentResponsible(CHORE_ID)).thenReturn(Optional.of(USER_A));
 
-            assertThatThrownBy(() -> service.markCompleted(CHORE_ID, USER_B))
+            assertThatThrownBy(() -> service.markCompleted(CHORE_ID))
                     .isInstanceOf(BusinessRuleViolationException.class)
                     .extracting("errorCode").isEqualTo("NOT_CURRENT_RESPONSIBLE");
 
@@ -102,10 +109,11 @@ class ChoreCompletionServiceImplTest {
         @Test
         @DisplayName("no active responsible throws BusinessRuleViolationException")
         void noResponsible_Throws() {
+            when(currentUserProvider.getUserId()).thenReturn(USER_A);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(false)));
             when(rotationService.currentResponsible(CHORE_ID)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> service.markCompleted(CHORE_ID, USER_A))
+            assertThatThrownBy(() -> service.markCompleted(CHORE_ID))
                     .isInstanceOf(BusinessRuleViolationException.class)
                     .extracting("errorCode").isEqualTo("NO_ACTIVE_ASSIGNMENT");
 
@@ -180,11 +188,12 @@ class ChoreCompletionServiceImplTest {
         @DisplayName("approved=true: status CONFIRMED, rotation advances")
         void approved_Confirmed_AdvancesRotation() {
             ChoreCompletion pending = completion(UUID.randomUUID(), USER_A, ConfirmationStatus.PENDING);
+            when(currentUserProvider.getUserId()).thenReturn(USER_B);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(true)));
             when(completionStore.findById(pending.id())).thenReturn(Optional.of(pending));
             when(completionStore.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            CompletionResponse result = service.decideConfirmation(CHORE_ID, pending.id(), USER_B, true);
+            CompletionResponse result = service.decideConfirmation(CHORE_ID, pending.id(), true);
 
             assertThat(result.status()).isEqualTo(ConfirmationStatus.CONFIRMED);
             assertThat(result.confirmedByUserId()).isEqualTo(USER_B);
@@ -195,11 +204,12 @@ class ChoreCompletionServiceImplTest {
         @DisplayName("approved=false: status REJECTED, rotation does not advance")
         void rejected_NoRotation() {
             ChoreCompletion pending = completion(UUID.randomUUID(), USER_A, ConfirmationStatus.PENDING);
+            when(currentUserProvider.getUserId()).thenReturn(USER_B);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(true)));
             when(completionStore.findById(pending.id())).thenReturn(Optional.of(pending));
             when(completionStore.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            CompletionResponse result = service.decideConfirmation(CHORE_ID, pending.id(), USER_B, false);
+            CompletionResponse result = service.decideConfirmation(CHORE_ID, pending.id(), false);
 
             assertThat(result.status()).isEqualTo(ConfirmationStatus.REJECTED);
             verify(rotationService, never()).advance(any());
@@ -209,10 +219,11 @@ class ChoreCompletionServiceImplTest {
         @DisplayName("self-confirmation throws BusinessRuleViolationException")
         void selfConfirmation_Throws() {
             ChoreCompletion pending = completion(UUID.randomUUID(), USER_A, ConfirmationStatus.PENDING);
+            when(currentUserProvider.getUserId()).thenReturn(USER_A);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(true)));
             when(completionStore.findById(pending.id())).thenReturn(Optional.of(pending));
 
-            assertThatThrownBy(() -> service.decideConfirmation(CHORE_ID, pending.id(), USER_A, true))
+            assertThatThrownBy(() -> service.decideConfirmation(CHORE_ID, pending.id(), true))
                     .isInstanceOf(BusinessRuleViolationException.class)
                     .extracting("errorCode").isEqualTo("SELF_CONFIRMATION_NOT_ALLOWED");
 
@@ -231,10 +242,11 @@ class ChoreCompletionServiceImplTest {
         @DisplayName("non-PENDING status throws InvalidConfirmationStatusException, nothing saved")
         void nonPending_Throws(ConfirmationStatus current, boolean approved) {
             ChoreCompletion resolved = completion(UUID.randomUUID(), USER_A, current);
+            when(currentUserProvider.getUserId()).thenReturn(USER_B);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(true)));
             when(completionStore.findById(resolved.id())).thenReturn(Optional.of(resolved));
 
-            assertThatThrownBy(() -> service.decideConfirmation(CHORE_ID, resolved.id(), USER_B, approved))
+            assertThatThrownBy(() -> service.decideConfirmation(CHORE_ID, resolved.id(), approved))
                     .isInstanceOf(InvalidConfirmationStatusException.class)
                     .extracting("errorCode").isEqualTo("INVALID_CONFIRMATION_STATUS");
 
@@ -246,10 +258,11 @@ class ChoreCompletionServiceImplTest {
         @DisplayName("transition guard runs before self-confirmation check")
         void guardRunsBeforeSelfConfirmationCheck() {
             ChoreCompletion confirmed = completion(UUID.randomUUID(), USER_A, ConfirmationStatus.CONFIRMED);
+            when(currentUserProvider.getUserId()).thenReturn(USER_A);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(true)));
             when(completionStore.findById(confirmed.id())).thenReturn(Optional.of(confirmed));
 
-            assertThatThrownBy(() -> service.decideConfirmation(CHORE_ID, confirmed.id(), USER_A, true))
+            assertThatThrownBy(() -> service.decideConfirmation(CHORE_ID, confirmed.id(), true))
                     .isInstanceOf(InvalidConfirmationStatusException.class);
 
             verify(completionStore, never()).save(any());
@@ -319,4 +332,4 @@ class ChoreCompletionServiceImplTest {
     private ChoreCompletion completion(UUID id, UUID completedBy, ConfirmationStatus status) {
         return new ChoreCompletion(id, CHORE_ID, completedBy, Instant.now(), status, null, null);
     }
-}
+}

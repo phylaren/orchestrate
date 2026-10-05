@@ -2,7 +2,6 @@ package genius.project.orchestrate.chore;
 
 import genius.project.orchestrate.chore.dto.CompletionResponse;
 import genius.project.orchestrate.chore.dto.ConfirmationDecisionRequest;
-import genius.project.orchestrate.identity.CurrentUserProvider;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,19 +22,15 @@ import java.util.UUID;
 public class ChoreCompletionController {
 
     private final ChoreCompletionService choreCompletionService;
-    private final CurrentUserProvider currentUserProvider;
 
-    public ChoreCompletionController(ChoreCompletionService choreCompletionService,
-                                     CurrentUserProvider currentUserProvider) {
+    public ChoreCompletionController(ChoreCompletionService choreCompletionService) {
         this.choreCompletionService = choreCompletionService;
-        this.currentUserProvider = currentUserProvider;
     }
 
     @PostMapping
     public ResponseEntity<CompletionResponse> markCompleted(@PathVariable UUID choreId,
                                                             UriComponentsBuilder uriBuilder) {
-        UUID userId = currentUserProvider.getUserId();
-        CompletionResponse completion = choreCompletionService.markCompleted(choreId, userId);
+        CompletionResponse completion = choreCompletionService.markCompleted(choreId);
         URI location = uriBuilder
                 .path("/api/v1/chores/{choreId}/completions/{completionId}")
                 .buildAndExpand(choreId, completion.id())
@@ -57,9 +52,7 @@ public class ChoreCompletionController {
     public CompletionResponse decideConfirmation(@PathVariable UUID choreId,
                                                  @PathVariable UUID completionId,
                                                  @Valid @RequestBody ConfirmationDecisionRequest request) {
-        UUID confirmedByUserId = currentUserProvider.getUserId();
-        return choreCompletionService.decideConfirmation(
-                choreId, completionId, confirmedByUserId, request.approved());
+        return choreCompletionService.decideConfirmation(choreId, completionId, request.approved());
     }
 
     @DeleteMapping("/{completionId}")

@@ -6,6 +6,7 @@ import genius.project.orchestrate.chore.internal.domain.ChoreParticipant;
 import genius.project.orchestrate.chore.internal.domain.ChoreWithParticipants;
 import genius.project.orchestrate.chore.internal.repository.ChoreStore;
 import genius.project.orchestrate.common.exception.ResourceNotFoundException;
+import genius.project.orchestrate.identity.CurrentUserProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,9 @@ class ChoreLifecycleServiceImplTest {
     @Mock
     private ChoreStore choreStore;
 
+    @Mock
+    private CurrentUserProvider currentUserProvider;
+
     @InjectMocks
     private ChoreLifecycleServiceImpl service;
 
@@ -40,13 +44,10 @@ class ChoreLifecycleServiceImplTest {
     private static final UUID CHORE_ID = UUID.randomUUID();
     private static final UUID USER_ID = UUID.randomUUID();
 
-    // -------------------------------------------------------------------------
-    // createChore
-    // -------------------------------------------------------------------------
-
     @Test
     @DisplayName("saves chore with correct fields and returns response with needsAttention=true")
     void savesChoreAndReturns() {
+        when(currentUserProvider.getUserId()).thenReturn(USER_ID);
         Chore saved = chore(CHORE_ID, HOUSEHOLD_ID);
         when(choreStore.save(any())).thenReturn(saved);
 
@@ -63,10 +64,6 @@ class ChoreLifecycleServiceImplTest {
         assertThat(result.needsAttention()).isTrue();
     }
 
-    // -------------------------------------------------------------------------
-    // listChores
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("listChores")
     class ListChores {
@@ -80,7 +77,7 @@ class ChoreLifecycleServiceImplTest {
             List<ChoreResponse> result = service.listChores(HOUSEHOLD_ID);
 
             assertThat(result).hasSize(1);
-            assertThat(result.get(0).id()).isEqualTo(CHORE_ID);
+            assertThat(result.getFirst().id()).isEqualTo(CHORE_ID);
             verify(choreStore).findAllWithParticipants(HOUSEHOLD_ID);
         }
 
@@ -112,10 +109,6 @@ class ChoreLifecycleServiceImplTest {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // getChore
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("getChore")
     class GetChore {
@@ -143,10 +136,6 @@ class ChoreLifecycleServiceImplTest {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // updateChore
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("updateChore")
     class UpdateChore {
@@ -154,6 +143,7 @@ class ChoreLifecycleServiceImplTest {
         @Test
         @DisplayName("replaces editable fields, keeps id, household and createdAt")
         void replacesEditableFields() {
+            when(currentUserProvider.getUserId()).thenReturn(USER_ID);
             Chore existing = chore(CHORE_ID, HOUSEHOLD_ID);
             when(choreStore.findByIdWithParticipants(CHORE_ID))
                     .thenReturn(Optional.of(new ChoreWithParticipants(existing, List.of(participant()))));
@@ -188,10 +178,6 @@ class ChoreLifecycleServiceImplTest {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // deleteChore
-    // -------------------------------------------------------------------------
-
     @Nested
     @DisplayName("deleteChore")
     class DeleteChore {
@@ -199,6 +185,7 @@ class ChoreLifecycleServiceImplTest {
         @Test
         @DisplayName("deletes an existing chore")
         void deletesExisting() {
+            when(currentUserProvider.getUserId()).thenReturn(USER_ID);
             when(choreStore.findById(CHORE_ID)).thenReturn(Optional.of(chore(CHORE_ID, HOUSEHOLD_ID)));
 
             service.deleteChore(CHORE_ID);
@@ -218,10 +205,6 @@ class ChoreLifecycleServiceImplTest {
             verify(choreStore, never()).deleteById(any());
         }
     }
-
-    // -------------------------------------------------------------------------
-    // helpers
-    // -------------------------------------------------------------------------
 
     private Chore chore(UUID id, UUID householdId) {
         return new Chore(id, householdId, "Dishes", "Wash dishes", 3, true, Instant.now());
