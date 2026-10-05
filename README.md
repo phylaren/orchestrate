@@ -18,11 +18,14 @@
 - [2. SwapRequestStatus](#2-swaprequeststatus--запит-на-обмін-чергою)
 - [3. Swap strategies — стратегії обміну чергою](#3-swap-strategies--стратегії-обміну-чергою)
 - [4. Household і User — домогосподарства, членство, права](#4-household-і-user--домогосподарства-членство-права)
+- [Документація API: Swagger UI](#документація-api-swagger-ui)
+- [Автотести API: Postman і Newman](#автотести-api-postman-і-newman)
 - [Обробка помилок](#обробка-помилок)
 - [Де що лежить у коді](#де-що-лежить-у-коді)
 - [Тести](#тести)
 - [Як змінювати автомат](#як-змінювати-автомат)
 - [Відомі обмеження](#відомі-обмеження)
+- [Спільний стартер сповіщень і профілі dev/prod](#спільний-стартер-сповіщень-і-профілі-devprod)
 
 Схема бази даних і правила роботи з БД — окремий документ: [`README-db.md`](README-db.md).
 
@@ -353,6 +356,67 @@ SwapOutcome                  → ApplyNow → save schedule
 
 ---
 
+## Документація API: Swagger UI
+
+REST API описано за стандартом OpenAPI 3 за підходом **code-first**: специфікацію автоматично генерує
+[springdoc-openapi](https://springdoc.org/) із контролерів і DTO. Окремих файлів специфікації підтримувати не потрібно.
+
+| Що | Адреса (за замовчуванням `localhost:8080`) |
+|---|---|
+| Swagger UI | `/swagger-ui/index.html` (також `/swagger-ui.html`) |
+| Специфікація OpenAPI (JSON) | `/v3/api-docs` |
+
+Що задокументовано:
+
+- **Контролери** — `@Tag` (група), `@Operation` (опис дії), `@ApiResponses` (усі можливі статус-коди разом зі
+  стабільним полем `code` з `ProblemDetail`, напр. `409 SELF_CONFIRMATION_NOT_ALLOWED`).
+- **Моделі даних** — `@Schema` з описом та **прикладом значення** (`example`) для кожного поля DTO, наприклад
+  `UserCreateRequest`, `ChoreCreateRequest`, `CompletionResponse`. Обмеження Jakarta Validation (`@NotBlank`,
+  `@Size`, ...) потрапляють у специфікацію автоматично.
+- **Помилки** — єдина схема `ProblemDetail` (RFC 9457); її до кожної 4xx/5xx-відповіді додає `OperationCustomizer`
+  з [`OpenApiConfiguration`](src/main/java/genius/project/orchestrate/common/openapi/OpenApiConfiguration.java).
+- **Автентифікація** — доки Spring Security + JWT не підключено, поточного користувача задає заголовок `X-User-Id`.
+  У Swagger UI він оголошений схемою `UserIdHeader`: натисніть **Authorize**, вставте UUID користувача — і він
+  підставлятиметься в усі запити (`springdoc.swagger-ui.persist-authorization=true` зберігає його між оновленнями
+  сторінки). Без заголовка використовується користувач за замовчуванням.
+
+Як спробувати: запустіть застосунок (`./gradlew bootRun`), створіть користувача через `POST /api/v1/users`
+(приклад тіла вже підставлено зі схеми), скопіюйте `id` у **Authorize** і викликайте решту ендпоінтів.
+
+Тест [`OpenApiDocumentationTest`](src/test/java/genius/project/orchestrate/common/openapi/OpenApiDocumentationTest.java)
+перевіряє, що специфікація доступна, містить ключові ендпоінти, приклади моделей, схему `ProblemDetail` і схему
+автентифікації.
+
+## Автотести API: Postman і Newman
+
+У каталозі [`postman/`](postman) лежить колекція для одного ключового інтеграційного сценарію та файл оточення:
+
+| Файл | Призначення |
+|---|---|
+| [`postman/collection.json`](postman/collection.json) | Сценарій із 22 запитів і перевірок (`pm.test`) |
+| [`postman/env.json`](postman/env.json) | Оточення: `baseUrl` (за замовчуванням `http://localhost:8080`) |
+
+**Сценарій** («від дому до підтвердженого виконання»): створення двох користувачів → Alice створює домогосподарство
+і код запрошення → Bob приєднується за кодом → Alice створює обов'язок, що потребує підтвердження → обоє
+приєднуються до його виконання → відповідальна Alice відмічає виконання (`PENDING`) → підтвердити може лише інший
+учасник (Bob) → ротація переходить до Bob → прибирання. Окрім «щасливого шляху», перевіряються бізнес-правила:
+`400 VALIDATION_FAILED`, `409 ALREADY_HOUSEHOLD_MEMBER`, `409 NOT_CURRENT_RESPONSIBLE`,
+`409 SELF_CONFIRMATION_NOT_ALLOWED`, `422 INVALID_CONFIRMATION_STATUS`, `404 HOUSEHOLD_NOT_FOUND`. Після кожного запиту
+колекція також перевіряє наявність заголовка `X-Trace-Id` (його додає `TraceIdFilter`) і час відповіді.
+Колекція сама генерує унікальні email (змінна `runId`), тож її можна запускати багаторазово.
+
+Запуск у консолі (потрібен Node.js; застосунок має працювати):
+
+```bash
+./gradlew bootRun                     # термінал 1
+cd postman
+npx newman run collection.json -e env.json   # термінал 2
+```
+
+Код завершення Newman — `1`, якщо провалено хоча б одну перевірку, тож команду можна використовувати в CI.
+Корисні прапорці: `--bail` (зупинитись на першій помилці), `--reporters cli,junit`
+(`--reporter-junit-export ./newman-report.xml`).
+
 ## Обробка помилок
 
 Усі відповіді про помилки мають формат `ProblemDetail`; код помилки — у полі `code`.
@@ -522,3 +586,75 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
   прийняттям запиту), запит залишиться `ACCEPTED` без компенсації. Крім того, слухач події позначений
   `@ApplicationModuleListener` (транзакційний слухач): чи спрацьовує він, коли сервіс викликається без
   активної транзакції, слід підтвердити інтеграційним тестом.
+
+---
+
+## Спільний стартер сповіщень і профілі dev/prod
+
+Модуль [`orchestrate-notification-starter`](orchestrate-notification-starter) — окремий Gradle-підпроєкт
+у репозиторії команди. Він дає всім модулям **єдиний формат сповіщень** і підключається до застосунку
+однією залежністю `implementation(project(":orchestrate-notification-starter"))` — далі все робить
+автоконфігурація (`META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`).
+
+### Що надає стартер
+
+| Тип | Призначення |
+|---|---|
+| `Notification` | Єдиний формат: `source`, `topic`, `message`, `details`, `occurredAt` |
+| `NotificationPublisher` | Точка входу для модулів: `publish(topic, message, details)` |
+| `NotificationSender` | Канал доставки; застосунок може оголосити власний бін — стартер відступить |
+| `LoggingNotificationSender` | Канал `log` — пише сповіщення в лог |
+| `WebhookNotificationSender` | Канал `webhook` — `POST` JSON на зовнішній URL (`RestClient`) |
+| `NoOpNotificationSender` | Сповіщення вимкнені, виклики `publish` нічого не надсилають |
+
+У застосунку стартер використовує модуль `notification`: `ChoreNotificationListener` слухає
+`TurnSwapRequestedEvent` і публікує сповіщення з темою `chore.turn-swap-requested`.
+
+### Налаштування (`orchestrate.notification.*`)
+
+| Властивість | За замовчуванням | Опис |
+|---|---|---|
+| `enabled` | `true` | `false` → `NoOpNotificationSender` |
+| `channel` | `log` | `log` або `webhook` |
+| `source` | `orchestrate` | Значення поля `source` у сповіщенні |
+| `include-details` | `true` | Чи писати `details` у лог (канал `log`) |
+| `webhook.url` | — | Обов'язковий для `webhook`; без нього контекст не стартує (fail fast) |
+| `webhook.timeout` | `5s` | Таймаут з'єднання та читання |
+
+### Ієрархія налаштувань
+
+Кожен наступний рівень перевизначає попередній:
+
+1. значення за замовчуванням у `NotificationProperties` (стартер);
+2. `application.properties` — спільна база для всіх середовищ;
+3. `application-dev.properties` / `application-prod.properties` — профіль середовища;
+4. змінні оточення та аргументи командного рядка.
+
+| | `dev` | `prod` |
+|---|---|---|
+| Канал сповіщень | `log`, з `details` | `webhook`, URL з `ORCHESTRATE_NOTIFICATION_WEBHOOK_URL` |
+| `source` | `orchestrate-dev` | `orchestrate-prod` |
+| SQL у логах | так (з бази) | ні |
+| H2-консоль, Swagger UI | так (з бази) | вимкнено |
+
+```bash
+./gradlew bootRun --args='--spring.profiles.active=dev'
+```
+
+```bash
+ORCHESTRATE_NOTIFICATION_WEBHOOK_URL=https://hooks.example.com/orchestrate ./gradlew bootRun --args='--spring.profiles.active=prod'
+```
+
+### Тести
+
+- `NotificationAutoConfigurationTest` (`ApplicationContextRunner`) — які біни з'являються за різних прапорців:
+  канал за замовчуванням, `channel=log`/`webhook`, `enabled=false`, відсутній `webhook.url`,
+  відсутній `spring-web` у classpath (`FilteredClassLoader`), власні біни застосунку (`@ConditionalOnMissingBean`),
+  прив'язка властивостей.
+- `NotificationPublisherTest`, `WebhookNotificationSenderTest` (`MockRestServiceServer`) — формат і доставка.
+- `DevProfileNotificationTest`, `ProdProfileNotificationTest` — профілі застосунку піднімають потрібний канал
+  і правильно перевизначають базові налаштування.
+
+```bash
+./gradlew :orchestrate-notification-starter:test test
+```
