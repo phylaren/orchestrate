@@ -1,7 +1,6 @@
 package genius.project.orchestrate.chore;
 
 import genius.project.orchestrate.chore.dto.ParticipantResponse;
-import genius.project.orchestrate.identity.CurrentUserProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,42 +29,34 @@ class ChoreParticipantControllerTest {
     @MockitoBean
     private ChoreParticipantService choreParticipantService;
 
-    @MockitoBean
-    private CurrentUserProvider currentUserProvider;
-
     private static final UUID CHORE_ID = UUID.randomUUID();
-    private static final UUID CURRENT_USER_ID = UUID.randomUUID();
+    private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID OTHER_USER_ID = UUID.randomUUID();
 
     private static ParticipantResponse participantResponse(UUID userId, boolean addedByAdmin) {
         return new ParticipantResponse(CHORE_ID, userId, addedByAdmin, Instant.now());
     }
 
-    // ---------- POST (self-join) ----------
-
     @Test
-    @DisplayName("POST .../participants додає поточного користувача і повертає 201 Created")
+    @DisplayName("POST .../participants joins the current user as themselves and returns 201 Created")
     void join_ReturnsCreated() throws Exception {
-        when(currentUserProvider.getUserId()).thenReturn(CURRENT_USER_ID);
-        when(choreParticipantService.joinChore(CHORE_ID, CURRENT_USER_ID, false))
-                .thenReturn(participantResponse(CURRENT_USER_ID, false));
+        when(choreParticipantService.joinChore(CHORE_ID))
+                .thenReturn(participantResponse(USER_ID, false));
 
         mockMvc.perform(post("/api/v1/chores/{choreId}/participants", CHORE_ID))
                 .andExpect(status().isCreated())
                 .andExpect(header().exists("Location"))
                 .andExpect(jsonPath("$.choreId").value(CHORE_ID.toString()))
-                .andExpect(jsonPath("$.userId").value(CURRENT_USER_ID.toString()))
+                .andExpect(jsonPath("$.userId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.addedByAdmin").value(false));
 
-        verify(choreParticipantService).joinChore(CHORE_ID, CURRENT_USER_ID, false);
+        verify(choreParticipantService).joinChore(CHORE_ID);
     }
 
-    // ---------- PUT (admin-add) ----------
-
     @Test
-    @DisplayName("PUT .../participants/{userId} додає вказаного учасника і повертає 201 Created")
+    @DisplayName("PUT .../participants/{userId} adds the target user as admin and returns 201 Created")
     void addParticipant_ReturnsCreated() throws Exception {
-        when(choreParticipantService.joinChore(CHORE_ID, OTHER_USER_ID, true))
+        when(choreParticipantService.addParticipant(CHORE_ID, OTHER_USER_ID))
                 .thenReturn(participantResponse(OTHER_USER_ID, true));
 
         mockMvc.perform(put("/api/v1/chores/{choreId}/participants/{userId}", CHORE_ID, OTHER_USER_ID))
@@ -75,13 +66,11 @@ class ChoreParticipantControllerTest {
                 .andExpect(jsonPath("$.userId").value(OTHER_USER_ID.toString()))
                 .andExpect(jsonPath("$.addedByAdmin").value(true));
 
-        verify(choreParticipantService).joinChore(CHORE_ID, OTHER_USER_ID, true);
+        verify(choreParticipantService).addParticipant(CHORE_ID, OTHER_USER_ID);
     }
 
-    // ---------- GET ----------
-
     @Test
-    @DisplayName("GET .../participants повертає список учасників")
+    @DisplayName("GET .../participants returns the list")
     void list_ReturnsParticipants() throws Exception {
         when(choreParticipantService.listParticipants(CHORE_ID))
                 .thenReturn(List.of(participantResponse(OTHER_USER_ID, true)));
@@ -92,14 +81,12 @@ class ChoreParticipantControllerTest {
                 .andExpect(jsonPath("$[0].addedByAdmin").value(true));
     }
 
-    // ---------- DELETE ----------
-
     @Test
-    @DisplayName("DELETE .../participants/{userId} видаляє учасника і повертає 204 No Content")
-    void leave_ReturnsNoContent() throws Exception {
+    @DisplayName("DELETE .../participants/{userId} returns 204 No Content")
+    void remove_ReturnsNoContent() throws Exception {
         mockMvc.perform(delete("/api/v1/chores/{choreId}/participants/{userId}", CHORE_ID, OTHER_USER_ID))
                 .andExpect(status().isNoContent());
 
-        verify(choreParticipantService).leaveChore(CHORE_ID, OTHER_USER_ID);
+        verify(choreParticipantService).removeMember(CHORE_ID, OTHER_USER_ID);
     }
 }

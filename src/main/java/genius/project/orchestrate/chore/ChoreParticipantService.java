@@ -9,13 +9,13 @@ import java.util.UUID;
 
 public interface ChoreParticipantService {
 
-    ParticipantResponse joinChore(UUID choreId, UUID userId, boolean addedByAdmin);
+    ParticipantResponse joinChore(UUID choreId);
 
-    void leaveChore(UUID choreId, UUID userId);
+    ParticipantResponse addParticipant(UUID choreId, UUID targetUserId);
+
+    void removeMember(UUID choreId, UUID targetUserId);
 
     List<ParticipantResponse> listParticipants(UUID choreId);
-
-    boolean isParticipant(UUID choreId, UUID userId);
 
     Optional<AssignmentResponse> getCurrentAssignment(UUID choreId);
 }

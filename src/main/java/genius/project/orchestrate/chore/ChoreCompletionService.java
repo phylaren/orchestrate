@@ -7,14 +7,13 @@ import java.util.UUID;
 
 public interface ChoreCompletionService {
 
-    CompletionResponse markCompleted(UUID choreId, UUID userId);
+    CompletionResponse markCompleted(UUID choreId);
 
     List<CompletionResponse> listCompletions(UUID choreId);
 
     CompletionResponse getCompletion(UUID choreId, UUID completionId);
 
-    CompletionResponse decideConfirmation(UUID choreId, UUID completionId,
-                                          UUID confirmedByUserId, boolean approved);
+    CompletionResponse decideConfirmation(UUID choreId, UUID completionId, boolean approved);
 
     void deleteCompletion(UUID choreId, UUID completionId);
 }
