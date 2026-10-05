@@ -1,0 +1,1220 @@
+{
+  "info": {
+    "_postman_id": "6f1d2a5e-8c3b-4d47-9a10-5b7e2c9d4f31",
+    "name": "Orchestrate — ключовий сценарій: від дому до підтвердженого виконання",
+    "description": "Наскрізний інтеграційний сценарій: два користувачі, домогосподарство, запрошення, обов'язок із підтвердженням, ротація відповідального.\n\nЗапуск: `npx newman run collection.json -e env.json` (застосунок має працювати на {{baseUrl}}).\nПоточний користувач передається заголовком X-User-Id; усі змінні сценарію (runId, aliceId, bobId, householdId, ...) колекція створює сама.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Виконується після КОЖНОГО запиту колекції",
+          "pm.test(\"Відповідь містить заголовок X-Trace-Id\", function () {",
+          "    pm.response.to.have.header(\"X-Trace-Id\");",
+          "});",
+          "pm.test(\"Відповідь надійшла швидше за 2000 мс\", function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Підготовка: користувачі",
+      "description": "",
+      "item": [
+        {
+          "name": "1.1 Створити користувача Alice (власник)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Унікальний суфікс запуску, щоб email не конфліктував між прогонами",
+                  "pm.collectionVariables.set(\"runId\", String(Date.now()));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Заголовок Location вказує на нового користувача\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Location\")).to.include(\"/api/v1/users/\");",
+                  "});",
+                  "pm.test(\"X-Trace-Id із запиту повертається у відповіді\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"X-Trace-Id\")).to.eql(\"newman-\" + pm.collectionVariables.get(\"runId\"));",
+                  "});",
+                  "pm.test(\"Тіло містить згенерований UUID та email\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);",
+                  "    pm.expect(json.email).to.eql(\"alice.\" + pm.collectionVariables.get(\"runId\") + \"@example.com\");",
+                  "    pm.collectionVariables.set(\"aliceId\", json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Trace-Id",
+                "value": "newman-{{runId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Alice Owner\",\n  \"email\": \"alice.{{runId}}@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "1.2 Створити користувача Bob (мешканець)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Збережено id користувача Bob\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);",
+                  "    pm.collectionVariables.set(\"bobId\", json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Bob Roommate\",\n  \"email\": \"bob.{{runId}}@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "1.3 Негатив: некоректний email → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Помилка у форматі ProblemDetail з кодом VALIDATION_FAILED\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.status).to.eql(400);",
+                  "    pm.expect(body.code).to.eql(\"VALIDATION_FAILED\");",
+                  "});",
+                  "pm.test(\"Помилка вказує на поле email\", function () {",
+                  "    const fields = pm.response.json().errors.map(e => e.field);",
+                  "    pm.expect(fields).to.include(\"email\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Broken\",\n  \"email\": \"not-an-email\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Домогосподарство та запрошення",
+      "description": "",
+      "item": [
+        {
+          "name": "2.1 Alice створює домогосподарство",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Alice стала власником\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.ownerId).to.eql(pm.collectionVariables.get(\"aliceId\"));",
+                  "    pm.collectionVariables.set(\"householdId\", json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{aliceId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/households",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "households"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Newman Flat {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "2.2 Alice створює код запрошення",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Код запрошення згенеровано і має термін дії\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.code).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(json.householdId).to.eql(pm.collectionVariables.get(\"householdId\"));",
+                  "    pm.expect(new Date(json.expiresAt).getTime()).to.be.above(Date.now());",
+                  "    pm.collectionVariables.set(\"inviteCode\", json.code);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{aliceId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/households/{{householdId}}/invitation-code",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "households",
+                "{{householdId}}",
+                "invitation-code"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "2.3 Bob приєднується за кодом",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Bob — мешканець із базовим правом підтверджувати виконання\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.userId).to.eql(pm.collectionVariables.get(\"bobId\"));",
+                  "    pm.expect(json.permissions).to.have.members([\"CONFIRM_COMPLETIONS\"]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{bobId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/households/join",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "households",
+                "join"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{inviteCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "2.4 Негатив: повторне приєднання → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 409 Conflict\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"Помилка у форматі ProblemDetail з кодом ALREADY_HOUSEHOLD_MEMBER\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.status).to.eql(409);",
+                  "    pm.expect(body.code).to.eql(\"ALREADY_HOUSEHOLD_MEMBER\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{bobId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/households/join",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "households",
+                "join"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{inviteCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Обов'язок та група виконання",
+      "description": "",
+      "item": [
+        {
+          "name": "3.1 Alice створює обов'язок (потребує підтвердження)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Обов'язок без учасників потребує уваги\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.needsAttention).to.be.true;",
+                  "    pm.expect(json.requiresConfirmation).to.be.true;",
+                  "    pm.expect(json.householdId).to.eql(pm.collectionVariables.get(\"householdId\"));",
+                  "    pm.collectionVariables.set(\"choreId\", json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{aliceId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chores"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"householdId\": \"{{householdId}}\",\n  \"name\": \"Винести сміття\",\n  \"description\": \"Винести пакети з кухні до баків у дворі до 20:00\",\n  \"recurrenceDays\": 3,\n  \"requiresConfirmation\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "3.2 Alice приєднується до виконання",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Alice у групі виконання (добровільно)\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.userId).to.eql(pm.collectionVariables.get(\"aliceId\"));",
+                  "    pm.expect(json.addedByAdmin).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{aliceId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chores/{{choreId}}/participants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chores",
+                "{{choreId}}",
+                "participants"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "3.3 Bob приєднується до виконання",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{bobId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chores/{{choreId}}/participants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chores",
+                "{{choreId}}",
+                "participants"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "3.4 Обов'язок більше не потребує уваги",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"needsAttention = false\", function () {",
+                  "    pm.expect(pm.response.json().needsAttention).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{aliceId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chores/{{choreId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chores",
+                "{{choreId}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "3.5 Відповідальний на цикл — Alice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Першою відповідальною стала Alice\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.currentResponsibleUserId).to.eql(pm.collectionVariables.get(\"aliceId\"));",
+                  "    pm.expect(json.cycleNumber).to.be.a(\"number\").and.above(0);",
+                  "    pm.collectionVariables.set(\"cycleBefore\", json.cycleNumber);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{aliceId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chores/{{choreId}}/assignment",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chores",
+                "{{choreId}}",
+                "assignment"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Виконання та підтвердження",
+      "description": "",
+      "item": [
+        {
+          "name": "4.1 Негатив: Bob не відповідальний → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 409 Conflict\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"Помилка у форматі ProblemDetail з кодом NOT_CURRENT_RESPONSIBLE\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.status).to.eql(409);",
+                  "    pm.expect(body.code).to.eql(\"NOT_CURRENT_RESPONSIBLE\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{bobId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chores/{{choreId}}/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chores",
+                "{{choreId}}",
+                "completions"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "4.2 Alice відмічає обов'язок виконаним",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Виконання очікує підтвердження (PENDING)\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"PENDING\");",
+                  "    pm.expect(json.completedByUserId).to.eql(pm.collectionVariables.get(\"aliceId\"));",
+                  "    pm.expect(json.confirmedByUserId).to.be.null;",
+                  "    pm.collectionVariables.set(\"completionId\", json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{aliceId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chores/{{choreId}}/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chores",
+                "{{choreId}}",
+                "completions"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "4.3 Негатив: Alice не може підтвердити сама себе → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 409 Conflict\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"Помилка у форматі ProblemDetail з кодом SELF_CONFIRMATION_NOT_ALLOWED\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.status).to.eql(409);",
+                  "    pm.expect(body.code).to.eql(\"SELF_CONFIRMATION_NOT_ALLOWED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{aliceId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chores/{{choreId}}/completions/{{completionId}}/confirmation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chores",
+                "{{choreId}}",
+                "completions",
+                "{{completionId}}",
+                "confirmation"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approved\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "4.4 Bob підтверджує виконання",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Виконання підтверджено Bob\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql(\"CONFIRMED\");",
+                  "    pm.expect(json.confirmedByUserId).to.eql(pm.collectionVariables.get(\"bobId\"));",
+                  "    pm.expect(json.confirmedAt).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{bobId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chores/{{choreId}}/completions/{{completionId}}/confirmation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chores",
+                "{{choreId}}",
+                "completions",
+                "{{completionId}}",
+                "confirmation"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approved\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "4.5 Негатив: повторне рішення → 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 422 Unprocessable Content\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "pm.test(\"Помилка у форматі ProblemDetail з кодом INVALID_CONFIRMATION_STATUS\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.status).to.eql(422);",
+                  "    pm.expect(body.code).to.eql(\"INVALID_CONFIRMATION_STATUS\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{bobId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chores/{{choreId}}/completions/{{completionId}}/confirmation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chores",
+                "{{choreId}}",
+                "completions",
+                "{{completionId}}",
+                "confirmation"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approved\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Перевірка результату та прибирання",
+      "description": "",
+      "item": [
+        {
+          "name": "5.1 Ротація перейшла до Bob",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Відповідальний — Bob, цикл збільшився на 1\", function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.currentResponsibleUserId).to.eql(pm.collectionVariables.get(\"bobId\"));",
+                  "    pm.expect(json.cycleNumber).to.eql(Number(pm.collectionVariables.get(\"cycleBefore\")) + 1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{bobId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chores/{{choreId}}/assignment",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chores",
+                "{{choreId}}",
+                "assignment"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "5.2 Історія виконань містить підтверджений запис",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Є один запис зі статусом CONFIRMED\", function () {",
+                  "    const list = pm.response.json();",
+                  "    pm.expect(list).to.have.lengthOf(1);",
+                  "    pm.expect(list[0].id).to.eql(pm.collectionVariables.get(\"completionId\"));",
+                  "    pm.expect(list[0].status).to.eql(\"CONFIRMED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{bobId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/chores/{{choreId}}/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chores",
+                "{{choreId}}",
+                "completions"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "5.3 Домогосподарства Bob: він мешканець, не власник",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"У списку є наше домогосподарство, owner = false\", function () {",
+                  "    const mine = pm.response.json().find(h => h.householdId === pm.collectionVariables.get(\"householdId\"));",
+                  "    pm.expect(mine, \"домогосподарство має бути у списку\").to.exist;",
+                  "    pm.expect(mine.owner).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{bobId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{bobId}}/households",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{bobId}}",
+                "households"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "5.4 Alice видаляє домогосподарство",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 204 No Content\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{aliceId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/households/{{householdId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "households",
+                "{{householdId}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "5.5 Домогосподарство більше не існує → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Помилка у форматі ProblemDetail з кодом HOUSEHOLD_NOT_FOUND\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.status).to.eql(404);",
+                  "    pm.expect(body.code).to.eql(\"HOUSEHOLD_NOT_FOUND\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{aliceId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/households/{{householdId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "households",
+                "{{householdId}}"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "runId",
+      "value": ""
+    },
+    {
+      "key": "aliceId",
+      "value": ""
+    },
+    {
+      "key": "bobId",
+      "value": ""
+    },
+    {
+      "key": "householdId",
+      "value": ""
+    },
+    {
+      "key": "inviteCode",
+      "value": ""
+    },
+    {
+      "key": "choreId",
+      "value": ""
+    },
+    {
+      "key": "completionId",
+      "value": ""
+    },
+    {
+      "key": "cycleBefore",
+      "value": ""
+    }
+  ]
+}
