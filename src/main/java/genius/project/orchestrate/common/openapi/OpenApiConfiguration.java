@@ -1,4 +1,4 @@
-package genius.project.orchestrate.common.openai;
+package genius.project.orchestrate.common.openapi;
 
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -66,10 +66,17 @@ public class OpenApiConfiguration {
             if (operation.getResponses() != null) {
                 operation.getResponses().forEach((code, response) -> {
                     boolean isError = code.startsWith("4") || code.startsWith("5");
-                    if (isError && response.getContent() == null) {
-                        response.setContent(new Content().addMediaType(PROBLEM_JSON,
-                                new MediaType().schema(new Schema<>().$ref(
-                                        "#/components/schemas/" + PROBLEM_DETAIL_SCHEMA))));
+                    if (isError) {
+                        Content content = response.getContent();
+                        if (content == null) {
+                            content = new Content();
+                            response.setContent(content);
+                        }
+                        if (!content.containsKey(PROBLEM_JSON)) {
+                            content.addMediaType(PROBLEM_JSON,
+                                    new MediaType().schema(new Schema<>().$ref(
+                                            "#/components/schemas/" + PROBLEM_DETAIL_SCHEMA)));
+                        }
                     }
                 });
             }
