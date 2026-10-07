@@ -25,6 +25,7 @@
 - [Тести](#тести)
 - [Як змінювати автомат](#як-змінювати-автомат)
 - [Відомі обмеження](#відомі-обмеження)
+- [Спільний стартер сповіщень і профілі dev/prod](#спільний-стартер-сповіщень-і-профілі-devprod)
 
 Схема бази даних і правила роботи з БД — окремий документ: [`README-db.md`](README-db.md).
 
@@ -585,3 +586,75 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
   прийняттям запиту), запит залишиться `ACCEPTED` без компенсації. Крім того, слухач події позначений
   `@ApplicationModuleListener` (транзакційний слухач): чи спрацьовує він, коли сервіс викликається без
   активної транзакції, слід підтвердити інтеграційним тестом.
+
+---
+
+## Спільний стартер сповіщень і профілі dev/prod
+
+Модуль [`orchestrate-notification-starter`](orchestrate-notification-starter) — окремий Gradle-підпроєкт
+у репозиторії команди. Він дає всім модулям **єдиний формат сповіщень** і підключається до застосунку
+однією залежністю `implementation(project(":orchestrate-notification-starter"))` — далі все робить
+автоконфігурація (`META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`).
+
+### Що надає стартер
+
+| Тип | Призначення |
+|---|---|
+| `Notification` | Єдиний формат: `source`, `topic`, `message`, `details`, `occurredAt` |
+| `NotificationPublisher` | Точка входу для модулів: `publish(topic, message, details)` |
+| `NotificationSender` | Канал доставки; застосунок може оголосити власний бін — стартер відступить |
+| `LoggingNotificationSender` | Канал `log` — пише сповіщення в лог |
+| `WebhookNotificationSender` | Канал `webhook` — `POST` JSON на зовнішній URL (`RestClient`) |
+| `NoOpNotificationSender` | Сповіщення вимкнені, виклики `publish` нічого не надсилають |
+
+У застосунку стартер використовує модуль `notification`: `ChoreNotificationListener` слухає
+`TurnSwapRequestedEvent` і публікує сповіщення з темою `chore.turn-swap-requested`.
+
+### Налаштування (`orchestrate.notification.*`)
+
+| Властивість | За замовчуванням | Опис |
+|---|---|---|
+| `enabled` | `true` | `false` → `NoOpNotificationSender` |
+| `channel` | `log` | `log` або `webhook` |
+| `source` | `orchestrate` | Значення поля `source` у сповіщенні |
+| `include-details` | `true` | Чи писати `details` у лог (канал `log`) |
+| `webhook.url` | — | Обов'язковий для `webhook`; без нього контекст не стартує (fail fast) |
+| `webhook.timeout` | `5s` | Таймаут з'єднання та читання |
+
+### Ієрархія налаштувань
+
+Кожен наступний рівень перевизначає попередній:
+
+1. значення за замовчуванням у `NotificationProperties` (стартер);
+2. `application.properties` — спільна база для всіх середовищ;
+3. `application-dev.properties` / `application-prod.properties` — профіль середовища;
+4. змінні оточення та аргументи командного рядка.
+
+| | `dev` | `prod` |
+|---|---|---|
+| Канал сповіщень | `log`, з `details` | `webhook`, URL з `ORCHESTRATE_NOTIFICATION_WEBHOOK_URL` |
+| `source` | `orchestrate-dev` | `orchestrate-prod` |
+| SQL у логах | так (з бази) | ні |
+| H2-консоль, Swagger UI | так (з бази) | вимкнено |
+
+```bash
+./gradlew bootRun --args='--spring.profiles.active=dev'
+```
+
+```bash
+ORCHESTRATE_NOTIFICATION_WEBHOOK_URL=https://hooks.example.com/orchestrate ./gradlew bootRun --args='--spring.profiles.active=prod'
+```
+
+### Тести
+
+- `NotificationAutoConfigurationTest` (`ApplicationContextRunner`) — які біни з'являються за різних прапорців:
+  канал за замовчуванням, `channel=log`/`webhook`, `enabled=false`, відсутній `webhook.url`,
+  відсутній `spring-web` у classpath (`FilteredClassLoader`), власні біни застосунку (`@ConditionalOnMissingBean`),
+  прив'язка властивостей.
+- `NotificationPublisherTest`, `WebhookNotificationSenderTest` (`MockRestServiceServer`) — формат і доставка.
+- `DevProfileNotificationTest`, `ProdProfileNotificationTest` — профілі застосунку піднімають потрібний канал
+  і правильно перевизначають базові налаштування.
+
+```bash
+./gradlew :orchestrate-notification-starter:test test
+```
