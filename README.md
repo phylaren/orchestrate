@@ -290,7 +290,7 @@ SwapOutcome                  → ApplyNow → save schedule
 
 | Метод | Шлях | Хто може | Що робить |
 |---|---|---|---|
-| POST | `/api/v1/users` | будь-хто | Реєстрація користувача (`displayName`, `email`) → 201 |
+| POST | `/api/v1/users` | будь-хто | Реєстрація користувача (`displayName`, `email`, `password` 8–128 символів; пароль зберігається як Argon2id-хеш і не повертається) → 201 |
 | GET | `/api/v1/users`, `/api/v1/users/{userId}` | будь-хто | Список / один користувач |
 | GET | `/api/v1/users/{userId}/households` | будь-хто | Усі доми користувача з ознакою `owner` і правами |
 | POST | `/api/v1/households` | зареєстрований користувач | Створити дім (`name`); творець стає власником → 201 |

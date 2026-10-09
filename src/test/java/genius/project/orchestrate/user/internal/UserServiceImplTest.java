@@ -11,6 +11,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -29,6 +31,9 @@ class UserServiceImplTest {
 
     @Mock
     private UserRepository repository;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
 
     @InjectMocks
     private UserServiceImpl service;
@@ -43,12 +48,13 @@ class UserServiceImplTest {
         @DisplayName("зберігає користувача з нормалізованим email та обрізаним іменем")
         void savesNormalizedUser() {
             when(repository.findByEmail("anna@example.com")).thenReturn(Optional.empty());
-            when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(passwordEncoder.encode("plain-pass-1")).thenReturn("$argon2id$hash");
+            when(repository.register(any(), any())).thenAnswer(inv -> inv.getArgument(0));
 
-            User created = service.createUser("  Анна  ", "  Anna@Example.COM ");
+            User created = service.createUser("  Анна  ", "  Anna@Example.COM ", "plain-pass-1");
 
             ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-            verify(repository).save(captor.capture());
+            verify(repository).register(captor.capture(), eq("$argon2id$hash"));
             assertThat(captor.getValue().displayName()).isEqualTo("Анна");
             assertThat(captor.getValue().email()).isEqualTo("anna@example.com");
             assertThat(captor.getValue().id()).isNotNull();
@@ -57,15 +63,29 @@ class UserServiceImplTest {
         }
 
         @Test
+        @DisplayName("у сховище йде лише хеш: відкритий пароль не зберігається")
+        void storesHashNotRawPassword() {
+            when(repository.findByEmail("anna@example.com")).thenReturn(Optional.empty());
+            when(passwordEncoder.encode("plain-pass-1")).thenReturn("$argon2id$hash");
+            when(repository.register(any(), any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.createUser("Анна", "anna@example.com", "plain-pass-1");
+
+            verify(repository).register(any(), eq("$argon2id$hash"));
+            verify(repository, never()).register(any(), eq("plain-pass-1"));
+        }
+
+        @Test
         @DisplayName("зайнятий email (без урахування регістру) — EmailAlreadyTakenException, нічого не зберігається")
         void duplicateEmail_Throws() {
             when(repository.findByEmail("anna@example.com"))
                     .thenReturn(Optional.of(user(USER_ID, "anna@example.com")));
 
-            assertThatThrownBy(() -> service.createUser("Анна", "ANNA@example.com"))
+            assertThatThrownBy(() -> service.createUser("Анна", "ANNA@example.com", "plain-pass-1"))
                     .isInstanceOf(EmailAlreadyTakenException.class)
                     .extracting("errorCode").isEqualTo("EMAIL_ALREADY_TAKEN");
-            verify(repository, never()).save(any());
+            verify(repository, never()).register(any(), any());
+            verify(passwordEncoder, never()).encode(any());
         }
     }
 

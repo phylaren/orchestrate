@@ -8,9 +8,10 @@ import java.util.UUID;
 
 public interface UserService extends UserClient {
 
-    User createUser(String displayName, String email);
+    User createUser(String displayName, String email, String rawPassword);
 
     User getUser(UUID userId);
 
     List<User> listUsers();
+
 }

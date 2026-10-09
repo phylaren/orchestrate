@@ -36,18 +36,18 @@ public class UserController {
     }
 
     @Operation(summary = "Створити користувача",
-            description = "Реєструє нового користувача. Електронна пошта має бути унікальною.")
+            description = "Реєструє нового користувача з паролем. Електронна пошта має бути унікальною; пароль зберігається лише як Argon2id-хеш.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Користувача створено; заголовок Location вказує на новий ресурс",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = UserResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Некоректні вхідні дані (VALIDATION_FAILED)"),
-            @ApiResponse(responseCode = "409", description = "Електронна пошта вже зайнята (EMAIL_ALREADY_TAKEN)")
+            @ApiResponse(responseCode = "400", description = "Помилка валідації полів запиту"),
+            @ApiResponse(responseCode = "409", description = "Користувач із такою електронною поштою вже існує")
     })
     @PostMapping
     public ResponseEntity<UserResponse> createUser(@Valid @RequestBody UserCreateRequest request,
-                                                     UriComponentsBuilder uriBuilder) {
-        User user = userService.createUser(request.displayName(), request.email());
+                                                   UriComponentsBuilder uriBuilder) {
+        User user = userService.createUser(request.displayName(), request.email(), request.password());
         URI location = uriBuilder.path("/api/v1/users/{id}").buildAndExpand(user.id()).toUri();
         return ResponseEntity.created(location).body(UserResponse.from(user));
     }
