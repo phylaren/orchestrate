@@ -17,7 +17,7 @@
 
 | Що | Де |
 |---|---|
-| DDL | `src/main/resources/db/migration/V1__init_schema.sql` |
+| DDL | `src/main/resources/db/migration/V1__init_schema.sql`, далі `V2__user_credentials.sql` (облікові дані користувачів) |
 | Міграції | Flyway (`spring.flyway.enabled=true`), каталог `classpath:db/migration` |
 | База | H2 in-memory: `jdbc:h2:mem:orchestrate;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1` |
 | Схема проти коду | `spring.jpa.hibernate.ddl-auto=validate` — Hibernate лише перевіряє відповідність, нічого не створює |
@@ -51,6 +51,8 @@
 | `users` | `display_name` | `VARCHAR(100)` | NOT NULL | ім'я для показу |
 | `users` | `email` | `VARCHAR(254)` | NOT NULL | `uq_users_email`, зберігається в нижньому регістрі |
 | `users` | `created_at` | `TIMESTAMP WITH TIME ZONE` | NOT NULL | момент реєстрації |
+| `users` | `password_hash` | `VARCHAR(255)` | NULL | Argon2id-хеш у форматі PHC (міграція `V2`); `NULL` — акаунт без пароля, увійти не може |
+| `users` | `enabled` | `BOOLEAN` | NOT NULL | `DEFAULT TRUE` (міграція `V2`); `FALSE` блокує вхід |
 | `households` | `id` | `UUID` | NOT NULL | первинний ключ |
 | `households` | `name` | `VARCHAR(120)` | NOT NULL | назва дому |
 | `households` | `owner_id` | `UUID` | NOT NULL | FK → `users.id`, `RESTRICT` |
