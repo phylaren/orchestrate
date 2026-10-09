@@ -2,6 +2,7 @@ package genius.project.orchestrate.user.internal.persistence;
 
 import genius.project.orchestrate.user.internal.UserRepository;
 import genius.project.orchestrate.user.internal.domain.User;
+import genius.project.orchestrate.user.internal.domain.UserCredentials;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,25 @@ public class JpaUserRepository implements UserRepository {
                 })
                 .orElseGet(() -> new UserEntity(user.id(), user.displayName(), user.email(), user.createdAt()));
         return toDomain(repository.save(entity));
+    }
+
+    @Override
+    @Transactional
+    public User register(User user, String passwordHash) {
+        UserEntity entity = new UserEntity(
+                user.id(), user.displayName(), user.email(), user.createdAt(), passwordHash);
+        return toDomain(repository.save(entity));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UserCredentials> findCredentialsByEmail(String email) {
+        return repository.findByEmail(email).map(entity -> new UserCredentials(
+                entity.getId(),
+                entity.getEmail(),
+                entity.getDisplayName(),
+                entity.getPasswordHash(),
+                entity.isEnabled()));
     }
 
     @Override

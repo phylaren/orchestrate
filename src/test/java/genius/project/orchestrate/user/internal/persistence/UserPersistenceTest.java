@@ -3,6 +3,7 @@ package genius.project.orchestrate.user.internal.persistence;
 import genius.project.orchestrate.user.UserService;
 import genius.project.orchestrate.user.exception.EmailAlreadyTakenException;
 import genius.project.orchestrate.user.internal.domain.User;
+import genius.project.orchestrate.user.internal.domain.UserCredentials;
 import jakarta.persistence.EntityManager;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
@@ -96,5 +97,53 @@ class UserPersistenceTest {
         assertThat(userService.getUser(created.id()).email()).isEqualTo("anna@example.com");
         assertThatThrownBy(() -> userService.createUser("Анна 2", "ANNA@example.com"))
                 .isInstanceOf(EmailAlreadyTakenException.class);
+    }
+
+    @Test
+    @DisplayName("register зберігає хеш пароля, findCredentialsByEmail повертає його назад")
+    void registerStoresPasswordHash() {
+        UUID id = UUID.randomUUID();
+        adapter.register(new User(id, "Анна", "cred@example.com", T1), "$argon2id$stored-hash");
+        entityManager.flush();
+        entityManager.clear();
+
+        UserCredentials credentials = adapter.findCredentialsByEmail("cred@example.com").orElseThrow();
+        assertThat(credentials.id()).isEqualTo(id);
+        assertThat(credentials.passwordHash()).isEqualTo("$argon2id$stored-hash");
+        assertThat(credentials.enabled()).isTrue();
+    }
+
+    @Test
+    @DisplayName("користувач, збережений через save, не має пароля, але активний")
+    void saveWithoutPasswordLeavesHashEmpty() {
+        adapter.save(new User(UUID.randomUUID(), "Анна", "nopass@example.com", T1));
+        entityManager.flush();
+        entityManager.clear();
+
+        UserCredentials credentials = adapter.findCredentialsByEmail("nopass@example.com").orElseThrow();
+        assertThat(credentials.passwordHash()).isNull();
+        assertThat(credentials.enabled()).isTrue();
+    }
+
+    @Test
+    @DisplayName("save оновлює профіль, але не затирає хеш пароля")
+    void saveKeepsPasswordHash() {
+        UUID id = UUID.randomUUID();
+        adapter.register(new User(id, "Анна", "keep@example.com", T1), "$argon2id$stored-hash");
+        entityManager.flush();
+        entityManager.clear();
+
+        adapter.save(new User(id, "Ганна", "keep@example.com", T2));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(adapter.findCredentialsByEmail("keep@example.com").orElseThrow().passwordHash())
+                .isEqualTo("$argon2id$stored-hash");
+    }
+
+    @Test
+    @DisplayName("findCredentialsByEmail для невідомого email повертає порожній Optional")
+    void credentialsForUnknownEmail() {
+        assertThat(adapter.findCredentialsByEmail("ghost@example.com")).isEmpty();
     }
 }
