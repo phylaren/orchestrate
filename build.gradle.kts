@@ -41,6 +41,9 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.modulith:spring-modulith-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    implementation("org.springframework.security:spring-security-core")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.80")
 }
 
 dependencyManagement {
