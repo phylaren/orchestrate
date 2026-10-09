@@ -48,8 +48,8 @@ class HouseholdServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        owner = userService.createUser("Власник", "owner@example.com").id();
-        member = userService.createUser("Учасник", "member@example.com").id();
+        owner = userService.createUser("Власник", "owner@example.com", "owner-pass-123").id();
+        member = userService.createUser("Учасник", "member@example.com", "member-pass-123").id();
     }
 
     @Test

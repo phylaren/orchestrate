@@ -90,13 +90,24 @@ class UserPersistenceTest {
     @Test
     @DisplayName("сервіс на реальній БД: email нормалізується, дубль без урахування регістру відхиляється")
     void serviceRejectsDuplicateEmail() {
-        User created = userService.createUser("Анна", "Anna@Example.com");
+        User created = userService.createUser("Анна", "Anna@Example.com", "plain-pass-1");
         entityManager.flush();
         entityManager.clear();
 
         assertThat(userService.getUser(created.id()).email()).isEqualTo("anna@example.com");
-        assertThatThrownBy(() -> userService.createUser("Анна 2", "ANNA@example.com"))
+        assertThatThrownBy(() -> userService.createUser("Анна 2", "ANNA@example.com", "plain-pass-2"))
                 .isInstanceOf(EmailAlreadyTakenException.class);
+    }
+
+    @Test
+    @DisplayName("сервіс на реальній БД зберігає Argon2id-хеш, а не відкритий пароль")
+    void serviceStoresArgon2Hash() {
+        userService.createUser("Анна", "hashed@example.com", "plain-pass-1");
+        entityManager.flush();
+        entityManager.clear();
+
+        String hash = adapter.findCredentialsByEmail("hashed@example.com").orElseThrow().passwordHash();
+        assertThat(hash).startsWith("$argon2id$").doesNotContain("plain-pass-1");
     }
 
     @Test

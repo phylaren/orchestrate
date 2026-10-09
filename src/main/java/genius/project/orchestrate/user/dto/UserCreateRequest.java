@@ -19,6 +19,18 @@ public record UserCreateRequest(
         @NotBlank(message = "email must not be blank")
         @Email(message = "email must be a well-formed email address")
         @Size(max = 254, message = "email must be at most 254 characters")
-        String email
+        String email,
+
+        @Schema(description = "Пароль (8–128 символів). Зберігається лише як Argon2id-хеш і ніколи не повертається в API",
+                example = "correct-horse-battery", minLength = 8, maxLength = 128,
+                accessMode = Schema.AccessMode.WRITE_ONLY)
+        @NotBlank(message = "password must not be blank")
+        @Size(min = 8, max = 128, message = "password must be between 8 and 128 characters")
+        String password
 ) {
+
+        @Override
+        public String toString() {
+                return "UserCreateRequest[displayName=" + displayName + ", email=" + email + ", password=***]";
+        }
 }

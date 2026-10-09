@@ -37,19 +37,49 @@ class UserControllerTest {
     @Test
     @DisplayName("POST /api/v1/users з валідними даними повертає 201 і Location")
     void create_Valid_Returns201() throws Exception {
-        when(userService.createUser("Анна", "anna@example.com"))
+        when(userService.createUser("Анна", "anna@example.com", "correct-horse"))
                 .thenReturn(new User(USER_ID, "Анна", "anna@example.com", Instant.now()));
 
         mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"displayName":"Анна","email":"anna@example.com"}
+                                {"displayName":"Анна","email":"anna@example.com","password":"correct-horse"}
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", org.hamcrest.Matchers.endsWith("/api/v1/users/" + USER_ID)))
                 .andExpect(jsonPath("$.id").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.displayName").value("Анна"))
-                .andExpect(jsonPath("$.email").value("anna@example.com"));
+                .andExpect(jsonPath("$.email").value("anna@example.com"))
+                .andExpect(jsonPath("$.password").doesNotExist())
+                .andExpect(jsonPath("$.passwordHash").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/users без пароля повертає 400 VALIDATION_FAILED")
+    void create_MissingPassword_Returns400() throws Exception {
+        mockMvc.perform(post("/api/v1/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"displayName":"Анна","email":"anna@example.com"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("password"));
+        verify(userService, never()).createUser(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/users із занадто коротким паролем повертає 400 VALIDATION_FAILED")
+    void create_ShortPassword_Returns400() throws Exception {
+        mockMvc.perform(post("/api/v1/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"displayName":"Анна","email":"anna@example.com","password":"short"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("password"));
+        verify(userService, never()).createUser(any(), any(), any());
     }
 
     @Test
@@ -58,23 +88,23 @@ class UserControllerTest {
         mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"displayName":"Анна","email":"not-an-email"}
+                                {"displayName":"Анна","email":"not-an-email","password":"correct-horse"}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.errors[0].field").value("email"));
-        verify(userService, never()).createUser(any(), any());
+        verify(userService, never()).createUser(any(), any(), any());
     }
 
     @Test
     @DisplayName("POST /api/v1/users із зайнятим email повертає 409 EMAIL_ALREADY_TAKEN")
     void create_DuplicateEmail_Returns409() throws Exception {
-        when(userService.createUser(any(), any())).thenThrow(new EmailAlreadyTakenException("anna@example.com"));
+        when(userService.createUser(any(), any(), any())).thenThrow(new EmailAlreadyTakenException("anna@example.com"));
 
         mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"displayName":"Анна","email":"anna@example.com"}
+                                {"displayName":"Анна","email":"anna@example.com","password":"correct-horse"}
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_TAKEN"));
