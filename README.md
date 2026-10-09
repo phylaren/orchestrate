@@ -26,6 +26,7 @@
 - [Як змінювати автомат](#як-змінювати-автомат)
 - [Відомі обмеження](#відомі-обмеження)
 - [Спільний стартер сповіщень і профілі dev/prod](#спільний-стартер-сповіщень-і-профілі-devprod)
+- [Облікові записи та паролі](#облікові-записи-та-паролі)
 
 Схема бази даних і правила роботи з БД — окремий документ: [`README-db.md`](README-db.md).
 
@@ -539,6 +540,11 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 | `chore/internal/service/RotationServiceImplTest` | Делегування стратегіям, apply ScheduledSwap при `advance` |
 | `swap/SwapRequestControllerTest` | CRUD-ендпоінти, `summary`, фільтр за статусом, 400/403/404/409/422 |
 | `user/internal/persistence/UserPersistenceTest` | Мапінг `users`, оновлення, сортування, унікальність email у БД і в сервісі |
+| `user/internal/security/PasswordEncoderConfigTest` | Argon2id: формат PHC, перевірка пароля, унікальна сіль |
+| `user/internal/security/JpaUserDetailsServiceTest` | Завантаження за email, нормалізація, `UsernameNotFoundException`, вимкнені акаунти |
+| `user/internal/security/UserAuthenticationIntegrationTest` | Реєстрація → завантаження з БД → перевірка Argon2id-хеша |
+| `user/internal/security/DevUserSeeder*Test` | Тестові користувачі профілю `dev`: створення, ідемпотентність, вхід за паролем |
+| `user/UserPrincipalTest` | `UserDetails`: логін = email, роль `ROLE_USER`, акаунт без пароля вимкнений, `toString` без хеша |
 | `household/internal/persistence/HouseholdPersistenceTest` | Один SQL-запит на учасників / членства користувача / одне членство; каскад і `orphanRemoval`; заміна коду запрошення; FK на `users` |
 | `household/internal/HouseholdServiceIntegrationTest` | Повний сценарій `HouseholdService` на реальній БД: код → приєднання → передача власності → вихід → видалення дому |
 
@@ -559,6 +565,45 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 2. Реалізуйте `SwapStrategy` як `@Component` з `getSwapType()` і `execute(...)`.
 3. Оновіть цей README (таблиця стратегій, бізнес-правила, тести).
 4. Spring підхопить нову стратегію через `List<SwapStrategy>` — змін у `RotationServiceImpl` не потрібно.
+
+---
+
+## Облікові записи та паролі
+
+Перший крок автентифікації: користувачі зберігаються з паролем, а Spring Security вміє їх завантажувати.
+Ланцюг фільтрів, JWT і правила доступу додаються окремо — поки що всі ендпоінти відкриті.
+
+| Що | Де |
+|---|---|
+| Логін | email (нормалізується: `trim` + нижній регістр) |
+| Реєстрація | `POST /api/v1/users` з `password` (8–128 символів); у відповідь пароль і хеш не повертаються |
+| Зберігання | `users.password_hash` — Argon2id у форматі PHC (`$argon2id$v=19$m=16384,t=3,p=1$…`), міграція `V2` |
+| Кодувальник | `user/internal/security/PasswordEncoderConfig` — `Argon2PasswordEncoder` (сіль 16 Б, хеш 32 Б, 16 МіБ, 3 ітерації) |
+| Користувач для Security | `user/UserPrincipal` (`UserDetails`): `getId()`, `getUsername()` = email, authority `ROLE_USER` |
+| Завантаження | `user/internal/security/JpaUserDetailsService` → `UsernameNotFoundException` для невідомого логіна |
+| Акаунт без пароля | `password_hash IS NULL` → `isEnabled() == false`, увійти неможливо |
+
+**Чому одна роль `ROLE_USER`.** Адміністративні права в Orchestrate діють на рівні дому
+(`MembershipPermission` у `Membership`), тому їх не можна покласти в authorities облікового запису.
+Права конкретного дому перевіряються через `HouseholdClient.hasPermission(householdId, userId, permission)`.
+
+**Паролі й логи.** Відкритий пароль не зберігається і не логується: `UserCreateRequest.toString()` маскує
+його, `UserCredentials` і `UserPrincipal` не друкують хеш.
+
+### Тестові користувачі (профіль `dev`)
+
+Запуск: `./gradlew bootRun --args='--spring.profiles.active=dev'`. Пароль для всіх — `dev-password-123`
+(можна змінити властивістю `orchestrate.dev-seed.password`). Сидер ідемпотентний; у логу видно приклад
+збереженого хеша.
+
+| Користувач | Email | `X-User-Id` | Призначення |
+|---|---|---|---|
+| Dev Owner | `dev.owner@orchestrate.test` | `00000000-0000-0000-0000-0000000000d1` | створює дім і стає власником |
+| Dev Admin | `dev.admin@orchestrate.test` | `00000000-0000-0000-0000-0000000000d2` | приєднується за кодом, отримує частину прав |
+| Dev Resident | `dev.resident@orchestrate.test` | `00000000-0000-0000-0000-0000000000d3` | приєднується за кодом, права за замовчуванням |
+
+Ролі в домі виставляються через API: `POST /api/v1/households` від імені власника, `POST /api/v1/households/join`
+за кодом запрошення, потім права адміна через ендпоінт оновлення прав учасника (див. таблицю API вище).
 
 ---
 
