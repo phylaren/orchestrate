@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -41,7 +42,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(BusinessRuleViolationException.class)
     public ResponseEntity<ProblemDetail> handleBusinessRule(BusinessRuleViolationException ex, HttpServletRequest request) {
-        // Expected rejection — WARN without the exception so frequency is visible without stack-trace noise.
         log.warn("{}: {}", ex.getErrorCode(), ex.getMessage());
         ProblemDetail body = baseProblem(HttpStatus.CONFLICT, "Business rule violation", ex.getMessage(), request);
         body.setProperty("code", ex.getErrorCode());
@@ -112,9 +112,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ProblemDetail> handleAuthentication(AuthenticationException ex, HttpServletRequest request) {
+        log.warn("Authentication failed on {}: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail body = baseProblem(HttpStatus.UNAUTHORIZED, "Authentication failed",
+                "Invalid username or password.", request);
+        body.setProperty("code", "INVALID_CREDENTIALS");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleUnexpected(Exception ex, HttpServletRequest request) {
-        // Pass ex as the last argument so SLF4J prints the stack trace.
         log.error("Unhandled exception on {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         ProblemDetail body = baseProblem(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error",
                 "An unexpected error occurred while processing the request.", request);

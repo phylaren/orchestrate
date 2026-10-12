@@ -14,7 +14,10 @@ import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(properties = "ORCHESTRATE_NOTIFICATION_WEBHOOK_URL=https://hooks.example.test/orchestrate")
+@SpringBootTest(properties = {
+        "ORCHESTRATE_NOTIFICATION_WEBHOOK_URL=https://hooks.example.test/orchestrate",
+        "security.jwt.secret=test-secret-for-prod-profile-test-min-32-bytes-long"
+})
 @ActiveProfiles("prod")
 class ProdProfileNotificationTest {
 
@@ -39,7 +42,6 @@ class ProdProfileNotificationTest {
     void prodProfile_OverridesBaseProperties() {
         assertThat(context.getEnvironment().getProperty("spring.jpa.show-sql")).isEqualTo("false");
         assertThat(context.getEnvironment().getProperty("spring.h2.console.enabled")).isEqualTo("false");
-        // Не перевизначене в prod — береться з application.properties.
         assertThat(context.getEnvironment().getProperty("spring.jpa.open-in-view")).isEqualTo("false");
     }
 }
