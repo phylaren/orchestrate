@@ -9,16 +9,20 @@ import genius.project.orchestrate.chore.internal.persistence.ChoreEntity;
 import genius.project.orchestrate.chore.internal.persistence.ChoreParticipantEntity;
 import genius.project.orchestrate.chore.internal.persistence.ChoreParticipantId;
 import genius.project.orchestrate.chore.internal.repository.ChoreStore;
+import genius.project.orchestrate.user.UserPrincipal;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,6 +60,16 @@ class ChorePersistenceTest {
     @BeforeEach
     void setUp() {
         statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        UserPrincipal principal = new UserPrincipal(
+                USER_1, "seed@example.com", "Seed User", null, true);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        principal, null, principal.getAuthorities()));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     // -------------------------------------------------------------------------
@@ -75,7 +89,6 @@ class ChorePersistenceTest {
                 UUID id = persistChore("Extra " + i);
                 addParticipant(id, USER_1);
             }
-            // SEED_CHORE_2 keeps an empty rotation group
             entityManager.flush();
             entityManager.clear();
             statistics.clear();
