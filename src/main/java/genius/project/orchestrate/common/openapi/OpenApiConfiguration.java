@@ -23,7 +23,7 @@ import java.util.List;
 @Configuration
 public class OpenApiConfiguration {
 
-    static final String USER_HEADER_SCHEME = "UserIdHeader";
+    static final String BEARER_SCHEME = "bearerAuth";
     static final String PROBLEM_DETAIL_SCHEMA = "ProblemDetail";
     static final String PROBLEM_JSON = "application/problem+json";
 
@@ -38,10 +38,9 @@ public class OpenApiConfiguration {
                                 між мешканцями спільного домогосподарства: домогосподарства та членство, \
                                 обов'язки, ротація відповідального, підтвердження виконання, обмін чергою.
 
-                                **Автентифікація.** Spring Security + JWT ще не підключено: поточного користувача \
-                                визначає заголовок `X-User-Id` (UUID користувача). Натисніть **Authorize** і \
-                                вкажіть UUID — він додаватиметься до кожного запиту. Без заголовка \
-                                використовується користувач за замовчуванням.
+                                **Автентифікація.** Отримайте токен через `POST /api/v1/auth/login`, \
+                                натисніть **Authorize** і вставте його. Токен передається в заголовку \
+                                `Authorization: Bearer <token>`.
 
                                 **Помилки** повертаються у форматі `application/problem+json` (RFC 9457) \
                                 зі стабільним полем `code`. Кожна відповідь містить заголовок `X-Trace-Id` \
@@ -50,13 +49,13 @@ public class OpenApiConfiguration {
                 .servers(List.of(new Server()
                         .url("http://localhost:8080")
                         .description("Локальне середовище")))
-                .addSecurityItem(new SecurityRequirement().addList(USER_HEADER_SCHEME))
+                .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME))
                 .components(new Components()
-                        .addSecuritySchemes(USER_HEADER_SCHEME, new SecurityScheme()
-                                .type(SecurityScheme.Type.APIKEY)
-                                .in(SecurityScheme.In.HEADER)
-                                .name("X-User-Id")
-                                .description("UUID поточного користувача (тимчасова заміна JWT)."))
+                        .addSecuritySchemes(BEARER_SCHEME, new SecurityScheme()
+                                .type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer")
+                                .bearerFormat("JWT")
+                                .description("JWT access token, виданий `POST /api/v1/auth/login`."))
                         .addSchemas(PROBLEM_DETAIL_SCHEMA, problemDetailSchema()));
     }
 
