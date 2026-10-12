@@ -376,13 +376,15 @@ REST API описано за стандартом OpenAPI 3 за підходо�
   `@Size`, ...) потрапляють у специфікацію автоматично.
 - **Помилки** — єдина схема `ProblemDetail` (RFC 9457); її до кожної 4xx/5xx-відповіді додає `OperationCustomizer`
   з [`OpenApiConfiguration`](src/main/java/genius/project/orchestrate/common/openapi/OpenApiConfiguration.java).
-- **Автентифікація** — доки Spring Security + JWT не підключено, поточного користувача задає заголовок `X-User-Id`.
-  У Swagger UI він оголошений схемою `UserIdHeader`: натисніть **Authorize**, вставте UUID користувача — і він
-  підставлятиметься в усі запити (`springdoc.swagger-ui.persist-authorization=true` зберігає його між оновленнями
-  сторінки). Без заголовка використовується користувач за замовчуванням.
+- **Автентифікація** — JWT Bearer. Схема `bearerAuth` (`HTTP` + `bearer` + `JWT`) оголошена в
+  `OpenApiConfiguration` і застосовується до всіх ендпоінтів, крім `POST /api/v1/auth/login` (позначений
+  `@SecurityRequirements` без параметрів). У Swagger UI натисніть **Authorize**, вставте токен, отриманий
+  від `POST /api/v1/auth/login` — і він підставлятиметься в усі запити
+  (`springdoc.swagger-ui.persist-authorization=true` зберігає його між оновленнями сторінки).
 
 Як спробувати: запустіть застосунок (`./gradlew bootRun`), створіть користувача через `POST /api/v1/users`
-(приклад тіла вже підставлено зі схеми), скопіюйте `id` у **Authorize** і викликайте решту ендпоінтів.
+(приклад тіла вже підставлено зі схеми), потім отримайте токен через `POST /api/v1/auth/login`, скопіюйте
+`accessToken` у **Authorize** і викликайте решту ендпоінтів.
 
 Тест [`OpenApiDocumentationTest`](src/test/java/genius/project/orchestrate/common/openapi/OpenApiDocumentationTest.java)
 перевіряє, що специфікація доступна, містить ключові ендпоінти, приклади моделей, схему `ProblemDetail` і схему
@@ -394,17 +396,20 @@ REST API описано за стандартом OpenAPI 3 за підходо�
 
 | Файл | Призначення |
 |---|---|
-| [`postman/collection.json`](postman/collection.json) | Сценарій із 22 запитів і перевірок (`pm.test`) |
+| [`postman/collection.json`](postman/collection.json) | Сценарій із перевірками (`pm.test`), JWT-автентифікація |
 | [`postman/env.json`](postman/env.json) | Оточення: `baseUrl` (за замовчуванням `http://localhost:8080`) |
 
-**Сценарій** («від дому до підтвердженого виконання»): створення двох користувачів → Alice створює домогосподарство
-і код запрошення → Bob приєднується за кодом → Alice створює обов'язок, що потребує підтвердження → обоє
-приєднуються до його виконання → відповідальна Alice відмічає виконання (`PENDING`) → підтвердити може лише інший
-учасник (Bob) → ротація переходить до Bob → прибирання. Окрім «щасливого шляху», перевіряються бізнес-правила:
-`400 VALIDATION_FAILED`, `409 ALREADY_HOUSEHOLD_MEMBER`, `409 NOT_CURRENT_RESPONSIBLE`,
-`409 SELF_CONFIRMATION_NOT_ALLOWED`, `422 INVALID_CONFIRMATION_STATUS`, `404 HOUSEHOLD_NOT_FOUND`. Після кожного запиту
-колекція також перевіряє наявність заголовка `X-Trace-Id` (його додає `TraceIdFilter`) і час відповіді.
-Колекція сама генерує унікальні email (змінна `runId`), тож її можна запускати багаторазово.
+**Сценарій:** створення двох користувачів → логін кожного окремо (отримання `aliceToken` і `bobToken`) →
+Alice створює домогосподарство і код запрошення → Bob приєднується за кодом → Alice створює обов'язок,
+що потребує підтвердження → обоє приєднуються до його виконання → відповідальна Alice відмічає виконання
+(`PENDING`) → підтвердити може лише інший учасник (Bob) → ротація переходить до Bob → перевірка, що без
+токена запит дає 401 → прибирання.
+
+Негативні кейси: `400 VALIDATION_FAILED` (невалідний email при реєстрації), `401 INVALID_CREDENTIALS`
+(логін із невірним паролем), `409 ALREADY_HOUSEHOLD_MEMBER`, `409 SELF_CONFIRMATION_NOT_ALLOWED`,
+`401` без токена. Після кожного запиту колекція також перевіряє наявність заголовка `X-Trace-Id`
+(його додає `TraceIdFilter`) і час відповіді. Колекція сама генерує унікальні email (змінна `runId`),
+тож її можна запускати багаторазово.
 
 Запуск у консолі (потрібен Node.js; застосунок має працювати):
 
@@ -439,6 +444,7 @@ npx newman run collection.json -e env.json   # термінал 2
 | Непідтримуваний `SwapType` | `BusinessRuleViolationException` | `UNSUPPORTED_SWAP_TYPE` | 409 |
 | Змінює або видаляє не ініціатор | `NotSwapRequestInitiatorException` | `NOT_SWAP_REQUEST_INITIATOR` | 403 |
 | Спроба змінити чи видалити незмінний запит | `SwapRequestNotEditableException` | `SWAP_REQUEST_NOT_EDITABLE` | 409 |
+| Невірні крещеншели на `/api/v1/auth/login` | `AuthenticationException` | `INVALID_CREDENTIALS` | 401 |
 
 Приклад відповіді на недозволений перехід:
 
@@ -499,6 +505,13 @@ Content-Type: application/problem+json
 | Збір стратегій без `@Qualifier` | `RotationServiceImpl` конструктор (`List<SwapStrategy>`) |
 | `RotationSchedule.swapParticipants` | `chore/internal/domain/RotationSchedule.java` |
 | Слухач події обміну | `chore/internal/TurnSwapRequestedEventListener` (`@ApplicationModuleListener`) |
+| JWT-генерація | `identity/JwtService.java` |
+| JWT-валідація | `identity/JwtValidatorService.java` |
+| JWT-фільтр | `identity/internal/JwtAuthenticationFilter.java` (не `@Component`; інстанціюється в `SecurityFilterChain`) |
+| Логін-ендпоінт | `identity/AuthController.java` + `identity/dto/{LoginRequest, AuthResponse}.java` |
+| Провайдер поточного користувача | `identity/internal/SecurityContextCurrentUserProvider.java` |
+| `AuthenticationManager` | `identity/internal/AuthenticationManagerConfig.java` |
+| Помилка логіну в `ProblemDetail` | `common/exception/GlobalExceptionHandler.java` → `handleAuthentication` |
 
 Реалізація `canTransitionTo` (на прикладі `SwapRequestStatus`):
 
@@ -547,6 +560,14 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 | `user/UserPrincipalTest` | `UserDetails`: логін = email, роль `ROLE_USER`, акаунт без пароля вимкнений, `toString` без хеша |
 | `household/internal/persistence/HouseholdPersistenceTest` | Один SQL-запит на учасників / членства користувача / одне членство; каскад і `orphanRemoval`; заміна коду запрошення; FK на `users` |
 | `household/internal/HouseholdServiceIntegrationTest` | Повний сценарій `HouseholdService` на реальній БД: код → приєднання → передача власності → вихід → видалення дому |
+| `identity/JwtServiceTest` | Генерація токена: три частини JWT, subject, ролі, TTL, `WeakKeyException` на короткому секреті |
+| `identity/JwtValidatorServiceTest` | Валідація: свіжий токен, чужий subject, прострочений, підроблений підпис, malformed |
+| `identity/dto/LoginRequestTest` | `toString()` маскує пароль |
+| `identity/dto/AuthResponseTest` | `AuthResponse.of(...)` підставляє `tokenType = Bearer` |
+| `identity/AuthControllerTest` | 200 з токеном, 401 на невірні крещеншели, 400 на валідації, 400 на невідоме поле |
+| `identity/internal/JwtAuthenticationFilterTest` | Без заголовка, не-Bearer, валідний токен, підроблений, невідомий користувач, вже автентифікований |
+| `identity/internal/SecurityContextCurrentUserProviderTest` | UUID з principal, обидва шляхи помилки |
+| `identity/internal/AuthenticationManagerConfigTest` | Правильний і неправильний пароль |
 
 Матриці в тестах і в цьому файлі мають збігатися: якщо змінюєте одну — змінюйте й іншу.
 
@@ -570,8 +591,8 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 
 ## Облікові записи та паролі
 
-Перший крок автентифікації: користувачі зберігаються з паролем, а Spring Security вміє їх завантажувати.
-Ланцюг фільтрів, JWT і правила доступу додаються окремо — поки що всі ендпоінти відкриті.
+Користувачі зберігаються з паролем, Spring Security вміє їх завантажувати через `JpaUserDetailsService`.
+Ланцюг фільтрів і `SecurityFilterChain` — окрема задача; JWT-частина реалізована й готова до підключення.
 
 | Що | Де |
 |---|---|
@@ -583,12 +604,35 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 | Завантаження | `user/internal/security/JpaUserDetailsService` → `UsernameNotFoundException` для невідомого логіна |
 | Акаунт без пароля | `password_hash IS NULL` → `isEnabled() == false`, увійти неможливо |
 
+### Автентифікація за JWT
+
+| Що | Де |
+|---|---|
+| Логін | `POST /api/v1/auth/login` з тілом `{"username": "<email>", "password": "<password>"}` |
+| Відповідь | `{"accessToken": "<JWT>", "tokenType": "Bearer", "expiresIn": <секунди>}` |
+| Захист запитів | Заголовок `Authorization: Bearer <token>` |
+| Час життя токена | `security.jwt.expiration-minutes` (за замовчуванням 15 хв) |
+| Секрет підпису | `security.jwt.secret` (≥32 байти; у prod обов'язковий через `ORCHESTRATE_JWT_SECRET`) |
+| Фільтр | `identity/internal/JwtAuthenticationFilter` — `OncePerRequestFilter`, **не** `@Component`; інстанціюється в `SecurityFilterChain` через `new JwtAuthenticationFilter(...)` |
+| Провайдер користувача | `identity/internal/SecurityContextCurrentUserProvider` — читає UUID з токена в `SecurityContextHolder` |
+| `AuthenticationManager` | `identity/internal/AuthenticationManagerConfig` — `ProviderManager` + `DaoAuthenticationProvider` |
+| JWT-генерація | `identity/JwtService` — `Jwts.builder()`, HMAC-SHA, claim `roles` з `GrantedAuthority` |
+| JWT-валідація | `identity/JwtValidatorService` — `Jwts.parser().verifyWith(signingKey).build().parseSignedClaims(token)` |
+| Помилка логіну | `AuthenticationException` → `GlobalExceptionHandler.handleAuthentication` → 401 `INVALID_CREDENTIALS` |
+
+Потік: `POST /auth/login` → `JwtService.generateToken()` → клієнт зберігає токен →
+наступні запити з `Authorization: Bearer ...` → `JwtAuthenticationFilter` валідує і кладе
+`Authentication` у `SecurityContextHolder` → `SecurityContextCurrentUserProvider` повертає UUID →
+сервіси (`HouseholdServiceImpl`, `ChoreLifecycleServiceImpl`, `SwapRequestServiceImpl`, ...) виконують
+дії від імені цього користувача.
+
 **Чому одна роль `ROLE_USER`.** Адміністративні права в Orchestrate діють на рівні дому
 (`MembershipPermission` у `Membership`), тому їх не можна покласти в authorities облікового запису.
 Права конкретного дому перевіряються через `HouseholdClient.hasPermission(householdId, userId, permission)`.
 
 **Паролі й логи.** Відкритий пароль не зберігається і не логується: `UserCreateRequest.toString()` маскує
-його, `UserCredentials` і `UserPrincipal` не друкують хеш.
+його, `UserCredentials` і `UserPrincipal` не друкують хеш, `SensitiveDataMaskingConverter` маскує JWT у
+логах (`***JWT***`).
 
 ### Тестові користувачі (профіль `dev`)
 
@@ -596,13 +640,14 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 (можна змінити властивістю `orchestrate.dev-seed.password`). Сидер ідемпотентний; у логу видно приклад
 збереженого хеша.
 
-| Користувач | Email | `X-User-Id` | Призначення |
+| Користувач | Email | `X-User-Id` (legacy) | Призначення |
 |---|---|---|---|
 | Dev Owner | `dev.owner@orchestrate.test` | `00000000-0000-0000-0000-0000000000d1` | створює дім і стає власником |
 | Dev Admin | `dev.admin@orchestrate.test` | `00000000-0000-0000-0000-0000000000d2` | приєднується за кодом, отримує частину прав |
 | Dev Resident | `dev.resident@orchestrate.test` | `00000000-0000-0000-0000-0000000000d3` | приєднується за кодом, права за замовчуванням |
 
-Ролі в домі виставляються через API: `POST /api/v1/households` від імені власника, `POST /api/v1/households/join`
+Ролі в домі виставляються через API: `POST /api/v1/households` від імені власника (з JWT-токеном,
+отриманим від `POST /api/v1/auth/login` з відповідним email і паролем), `POST /api/v1/households/join`
 за кодом запрошення, потім права адміна через ендпоінт оновлення прав учасника (див. таблицю API вище).
 
 ---
@@ -616,16 +661,19 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 - **Household: немає атомарності багатокрокових змін.** Передача власності, вихід останнього учасника
   та перевірка унікальності email чи коду запрошення виконуються кількома окремими зверненнями до
   in-memory сховища. З появою БД це закривається транзакцією та унікальними індексами.
-- **Household: `CurrentUserProvider` — заглушка.** Вона завжди повертає `00000000-0000-0000-0000-000000000001`,
-  і цей id не можна отримати через `POST /api/v1/users`. Тому вручну перевірити сценарії з кількома
-  учасниками не вийде, доки не з'явиться справжня ідентифікація.
+- **`SecurityFilterChain` ще не налаштований.** `SecurityContextCurrentUserProvider` читає UUID з токена,
+  але `SecurityFilterChain`, який підключив би `JwtAuthenticationFilter` до ланцюга і дозволив
+  `/api/v1/auth/**` без автентифікації, поки не доданий. Без нього всі ендпоінти, що залежать від
+  `CurrentUserProvider`, не працюють — потрібно, щоб хтось із команди додав `SecurityConfiguration` з
+  `SessionCreationPolicy.STATELESS`, `permitAll` на `/api/v1/auth/**` і
+  `.addFilterBefore(new JwtAuthenticationFilter(...), UsernamePasswordAuthenticationFilter.class)`.
 - **Немає атомарності «перевірка + збереження».** `canTransitionTo` і збереження — два окремі кроки. Зараз
   сховище in-memory, тож два одночасні запити (наприклад, двоє підтверджувачів) теоретично можуть обидва
   пройти guard. Із появою БД це закривається оптимістичним блокуванням (`@Version`) або умовним оновленням
   (`UPDATE … WHERE status = 'PENDING'`).
 - **Право підтверджувати.** За специфікацією підтверджувач має мати відповідне право
-  (`MembershipPermission`). Наразі перевіряється лише правило «підтверджувач ≠ виконавець» (BR-C4); перевірка
-  прав з'явиться разом із модулем доступу.
+  (`MembershipPermission.CONFIRM_COMPLETIONS`). Наразі перевіряється лише правило
+  «підтверджувач ≠ виконавець» (BR-C4); перевірка прав через `HouseholdClient` — окрема задача.
 - **`ACCEPTED` і фактичний обмін — окремі кроки.** Статус зберігається до того, як подія обробиться в модулі
   `chore`. Якщо обробник завершиться помилкою (наприклад, учасник вийшов із групи між створенням і
   прийняттям запиту), запит залишиться `ACCEPTED` без компенсації. Крім того, слухач події позначений
@@ -681,13 +729,16 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 | `source` | `orchestrate-dev` | `orchestrate-prod` |
 | SQL у логах | так (з бази) | ні |
 | H2-консоль, Swagger UI | так (з бази) | вимкнено |
+| JWT-секрет | дефолтний (dev-only) | обов'язковий з `ORCHESTRATE_JWT_SECRET` |
 
 ```bash
 ./gradlew bootRun --args='--spring.profiles.active=dev'
 ```
 
 ```bash
-ORCHESTRATE_NOTIFICATION_WEBHOOK_URL=https://hooks.example.com/orchestrate ./gradlew bootRun --args='--spring.profiles.active=prod'
+ORCHESTRATE_NOTIFICATION_WEBHOOK_URL=https://hooks.example.com/orchestrate \
+ORCHESTRATE_JWT_SECRET="$(openssl rand -base64 48)" \
+./gradlew bootRun --args='--spring.profiles.active=prod'
 ```
 
 ### Тести
