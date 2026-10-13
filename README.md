@@ -754,3 +754,132 @@ ORCHESTRATE_JWT_SECRET="$(openssl rand -base64 48)" \
 ```bash
 ./gradlew :orchestrate-notification-starter:test test
 ```
+
+---
+
+## Безпека API: SecurityFilterChain, CORS, 401/403
+
+API захищене безсесійно (stateless): кожен запит до захищеного ресурсу має містити заголовок
+`Authorization: Bearer <JWT>`, отриманий через `POST /api/v1/auth/login`. Сервер не створює `HttpSession`
+і не видає кук.
+
+### Ланцюг фільтрів
+
+```
+HTTP-запит
+  └─ TraceIdFilter                      X-Trace-Id і MDC (також для відповідей 401/403)
+  └─ springSecurityFilterChain (-100)
+       ├─ CorsFilter                    preflight OPTIONS, заголовки CORS
+       ├─ JwtAuthenticationFilter       Bearer-токен → SecurityContext
+       ├─ ExceptionTranslationFilter    → ProblemDetailAuthenticationEntryPoint (401)
+       │                                → ProblemDetailAccessDeniedHandler (403)
+       └─ AuthorizationFilter           правила authorizeHttpRequests
+  └─ DispatcherServlet → контролер → @PreAuthorize
+```
+
+Конфігурація — `identity/internal/SecurityConfiguration.java`:
+
+| Налаштування | Значення | Чому |
+|---|---|---|
+| Сесії | `SessionCreationPolicy.STATELESS` | стан автентифікації передається токеном у кожному запиті |
+| CSRF | вимкнено | браузер не підставляє Bearer-токен автоматично, кук сесії немає |
+| `httpBasic`, `formLogin`, `logout` | вимкнено | вхід лише через `POST /api/v1/auth/login` |
+| Method Security | `@EnableMethodSecurity` | `@PreAuthorize` на методах контролерів і сервісів |
+
+Публічні маршрути (`permitAll`): `/api/v1/auth/**`, `POST /api/v1/users` (реєстрація), `/swagger-ui.html`,
+`/swagger-ui/**`, `/v3/api-docs/**`, `/h2-console/**`, `/error`. Усі інші запити потребують автентифікації.
+
+### CORS
+
+`identity/internal/CorsConfig.java`. Дозволені джерела задаються явним списком у властивості
+`orchestrate.security.cors.allowed-origins` (змінна оточення `ORCHESTRATE_SECURITY_CORS_ALLOWED_ORIGINS`),
+за замовчуванням `http://localhost:3000,http://localhost:5173`.
+
+| Параметр | Значення |
+|---|---|
+| Методи | `GET, POST, PUT, PATCH, DELETE, OPTIONS` |
+| Дозволені заголовки | `Authorization`, `Content-Type`, `X-Trace-Id` |
+| Доступні клієнту заголовки | `X-Trace-Id`, `Location`, `WWW-Authenticate` |
+| `allowCredentials` | `false` — токен у заголовку, а не в куках |
+| `maxAge` | 3600 с |
+
+Preflight-запит із недозволеного джерела отримує 403.
+
+### Помилки 401 і 403 (RFC 9457)
+
+Помилки фільтрів безпеки виникають до `DispatcherServlet`, тому їх формують окремі обробники в тому самому
+форматі `application/problem+json`, що й `GlobalExceptionHandler`.
+
+| Ситуація | Статус | `code` | Хто відповідає |
+|---|---|---|---|
+| Токен не передано | 401 | `AUTHENTICATION_REQUIRED` | `ProblemDetailAuthenticationEntryPoint`, заголовок `WWW-Authenticate: Bearer` |
+| Токен підроблено, пошкоджено або прострочено | 401 | `INVALID_TOKEN` | `ProblemDetailAuthenticationEntryPoint`, `WWW-Authenticate: Bearer error="invalid_token"` |
+| Бракує прав (`@PreAuthorize`) | 403 | `ACCESS_DENIED` | `ProblemDetailAccessDeniedHandler` |
+
+```json
+{
+  "type": "https://orchestrate.example.com/problems/access-denied",
+  "title": "Access denied",
+  "status": 403,
+  "detail": "You do not have permission to perform this operation.",
+  "instance": "/api/v1/households/9b2f6c3e-1a4d-4e5b-8f7a-0c1d2e3f4a5b/members/permissions",
+  "timestamp": "2026-10-13T20:04:24.135658Z",
+  "code": "ACCESS_DENIED"
+}
+```
+
+Відмова `@PreAuthorize` кидає `AccessDeniedException` усередині контролера. Щоб її не перехопив загальний
+`@ExceptionHandler(Exception.class)` (відповідь 500), `AccessDeniedRethrowingAdvice` з найвищим пріоритетом
+повторно кидає виняток, і його обробляє `ExceptionTranslationFilter`.
+
+Бізнес-перевірки сервісів (`NOT_HOUSEHOLD_MEMBER`, `MISSING_PERMISSION` тощо) працюють як і раніше та
+повертають 403 через `GlobalExceptionHandler` зі своїми кодами.
+
+### Method Security
+
+| Ендпоінт | Правило | Результат |
+|---|---|---|
+| `GET /api/v1/users/me` | `isAuthenticated()` | дані користувача з токена: id, email, ролі |
+| `GET /api/v1/households/{householdId}/members/permissions` | `@householdAccess.hasPermission(authentication, #householdId, 'MANAGE_MEMBERS')` | зведення прав учасників; 403 для учасника без `MANAGE_MEMBERS` |
+
+`household/internal/HouseholdAccess.java` — бін `householdAccess` для SpEL-виразів: перевіряє право поточного
+користувача в домі через `HouseholdClient.hasPermission`. Власник дому має всі права.
+
+### Перевірка: 401 → вхід → 200 → 403
+
+**curl.** Скрипт сам реєструє двох користувачів, створює дім, додає мешканця і проходить чотири кроки:
+
+```bash
+./gradlew bootRun                    # термінал 1
+sh scripts/security-check.sh         # термінал 2; BASE_URL=http://localhost:8080 за замовчуванням
+```
+
+| Крок | Запит | Очікування |
+|---|---|---|
+| 1 | `GET /api/v1/users/me` без токена | 401 `AUTHENTICATION_REQUIRED` |
+| 2 | `POST /api/v1/auth/login` | 200, `accessToken`, `tokenType: Bearer` |
+| 3 | `GET /api/v1/users/me` з `Authorization: Bearer <token>` | 200, дані користувача |
+| 4 | `GET /api/v1/households/{id}/members/permissions` мешканцем без `MANAGE_MEMBERS` | 403 `ACCESS_DENIED` |
+
+**Postman / Newman.** Окрема колекція `postman/security.collection.json` з тими самими кроками, а також
+перевіркою підробленого токена (401 `INVALID_TOKEN`), відсутності `Set-Cookie` і заголовка `X-Trace-Id`
+у кожній відповіді:
+
+```bash
+cd postman
+npx newman run security.collection.json -e env.json
+```
+
+### Тести безпеки
+
+| Тест | Що перевіряє |
+|---|---|
+| `identity/internal/SecurityConfigurationTest` | 401 без токена і з підробленим токеном, 200 з валідним токеном і `@WithMockUser`, публічна реєстрація без CSRF, CORS preflight для дозволеного і недозволеного джерела, відсутність `Set-Cookie` |
+| `household/HouseholdPermissionsControllerTest` | `@PreAuthorize` зі SpEL: 401 анонімно, 200 з `MANAGE_MEMBERS`, 403 без права, 403 для автентифікації без `UserPrincipal` |
+| `identity/internal/ProblemDetailSecurityHandlersTest` | формат ProblemDetail, коди та заголовок `WWW-Authenticate` для 401 і 403; текст внутрішнього винятку не потрапляє у відповідь |
+| `household/internal/HouseholdAccessTest` | логіка біна `householdAccess` |
+| `identity/SecurityFlowIntegrationTest` | повний контекст із БД, Argon2id і JWT: 401 → вхід → 200 → 403, невірний пароль, підроблений токен, порядок фільтрів |
+
+Для `@WebMvcTest` конфігурацію безпеки підключає `SecurityWebMvcTestConfiguration`, а анотація
+`@WithUserPrincipal` кладе в контекст справжній `UserPrincipal` (його очікують `@AuthenticationPrincipal`
+і `householdAccess`).
