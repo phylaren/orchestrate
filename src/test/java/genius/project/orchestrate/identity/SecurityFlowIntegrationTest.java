@@ -6,14 +6,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.boot.web.servlet.AbstractFilterRegistrationBean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
-import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -109,10 +108,8 @@ class SecurityFlowIntegrationTest {
     @Test
     @DisplayName("TraceIdFilter зареєстровано раніше за ланцюг Spring Security")
     void traceIdFilter_RunsBeforeSecurityChain() {
-        Map<String, FilterRegistrationBean> registrations = context.getBeansOfType(FilterRegistrationBean.class);
-
-        int traceOrder = registrations.get("traceIdFilterRegistration").getOrder();
-        int securityOrder = registrations.get("securityFilterChainRegistration").getOrder();
+        int traceOrder = context.getBean("traceIdFilterRegistration", AbstractFilterRegistrationBean.class).getOrder();
+        int securityOrder = context.getBean("securityFilterChainRegistration", AbstractFilterRegistrationBean.class).getOrder();
 
         assertThat(traceOrder).isLessThan(securityOrder);
     }
