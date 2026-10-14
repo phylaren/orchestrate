@@ -11,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.util.UUID;
@@ -27,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * без токена → 401; вхід → токен; з токеном → 200; без прав → 403.
  */
 @SpringBootTest
+@Transactional
 class SecurityFlowIntegrationTest {
 
     private static final String PASSWORD = "correct-horse-battery";
