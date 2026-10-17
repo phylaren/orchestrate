@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Обов’язки дому — Orchestrate</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<main class="container">
+    <div th:if="${successMessage}" class="alert alert-success" role="status"
+         th:text="${successMessage}">Обов’язок створено.</div>
+
+    <h1>Обов’язки дому</h1>
+
+    <a th:href="@{/households/{id}/chores/new(id=${householdId})}" class="btn btn-primary">Додати обов’язок</a>
+
+    <p th:if="${#lists.isEmpty(chores)}" class="empty">
+        У цьому домі ще немає обов’язків. Створіть перший.
+    </p>
+
+    <div th:unless="${#lists.isEmpty(chores)}" class="table-wrap">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>Назва</th>
+                <th>Опис</th>
+                <th>Інтервал (дн.)</th>
+                <th>Підтвердження</th>
+                <th>Статус</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="chore, stat : ${chores}" th:classappend="${chore.needsAttention} ? 'needs-attention'">
+                <td th:text="${stat.count}">1</td>
+                <td th:text="${chore.name}">Винести сміття</td>
+                <td th:text="${chore.description}">До 20:00</td>
+                <td th:text="${chore.recurrenceDays}">3</td>
+                <td th:text="${chore.requiresConfirmation} ? 'Потрібне' : 'Не потрібне'">Потрібне</td>
+                <td th:switch="${chore.needsAttention}">
+                    <span th:case="true" class="badge badge-warning">Потребує уваги</span>
+                    <span th:case="false" class="badge badge-ok">Є виконавці</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+</body>
+</html>
