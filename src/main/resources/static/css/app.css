@@ -1,0 +1,72 @@
+:root {
+    --bg: #f6f7f9;
+    --fg: #1f2933;
+    --muted: #616e7c;
+    --line: #d9dee4;
+    --primary: #2f5fd0;
+    --primary-fg: #ffffff;
+    --ok-bg: #e3f5e8;
+    --ok-fg: #1b6b34;
+    --warn-bg: #fff1cc;
+    --warn-fg: #8a5a00;
+    --danger: #b3261e;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.container { max-width: 56rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+
+h1 { margin: 0 0 1rem; font-size: 1.6rem; }
+
+.btn {
+    display: inline-block;
+    padding: .5rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: .375rem;
+    background: #fff;
+    color: var(--fg);
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+.btn-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-fg); }
+
+.alert { margin: 0 0 1rem; padding: .75rem 1rem; border-radius: .375rem; }
+.alert-success { background: var(--ok-bg); color: var(--ok-fg); }
+
+.empty { margin: 1.5rem 0; color: var(--muted); }
+
+.table-wrap { overflow-x: auto; margin-top: 1rem; }
+.table { width: 100%; border-collapse: collapse; background: #fff; }
+.table th, .table td { padding: .6rem .75rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.table th { color: var(--muted); font-weight: 600; font-size: .85rem; }
+
+.table tr.needs-attention td { background: var(--warn-bg); }
+
+.badge { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .8rem; white-space: nowrap; }
+.badge-ok { background: var(--ok-bg); color: var(--ok-fg); }
+.badge-warning { background: #ffd966; color: var(--warn-fg); font-weight: 600; }
+
+.form { margin-top: 1rem; padding: 1.25rem; background: #fff; border: 1px solid var(--line); border-radius: .5rem; }
+.field { margin-bottom: 1rem; }
+.field label { display: block; margin-bottom: .25rem; font-weight: 600; }
+.field input[type="text"], .field textarea {
+    width: 100%;
+    padding: .5rem .6rem;
+    border: 1px solid var(--line);
+    border-radius: .375rem;
+    font: inherit;
+}
+.field .hint { margin: .25rem 0 0; color: var(--muted); font-size: .85rem; }
+.field-checkbox label { display: inline; margin-left: .35rem; font-weight: 400; }
+.field-error { margin-top: .25rem; color: var(--danger); font-size: .9rem; }
+.is-invalid { border-color: var(--danger) !important; }
+
+.actions { display: flex; gap: .5rem; margin-top: 1.25rem; }
