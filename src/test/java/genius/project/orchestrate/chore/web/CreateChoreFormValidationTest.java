@@ -98,6 +98,12 @@ class CreateChoreFormValidationTest {
     }
 
     @Test
+    @DisplayName("відсутня галочка підтвердження (null) нормалізується до false")
+    void requiresConfirmation_Null_BecomesFalse() {
+        assertThat(new CreateChoreForm("Прибирання", null, "7", null).requiresConfirmation()).isFalse();
+    }
+
+    @Test
     @DisplayName("recurrenceDaysValue() перетворює валідований рядок на число")
     void recurrenceDaysValue_ParsesString() {
         assertThat(new CreateChoreForm("Прибирання", null, "365", false).recurrenceDaysValue()).isEqualTo(365);
