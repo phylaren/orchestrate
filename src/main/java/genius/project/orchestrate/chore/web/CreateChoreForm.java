@@ -18,8 +18,12 @@ public record CreateChoreForm(
                 message = "Інтервал має бути цілим числом від 1 до 365")
         String recurrenceDays,
 
-        boolean requiresConfirmation
+        Boolean requiresConfirmation
 ) {
+
+    public CreateChoreForm {
+        requiresConfirmation = Boolean.TRUE.equals(requiresConfirmation);
+    }
 
     static final String RECURRENCE_DAYS_REGEXP = "^([1-9]|[1-9]\\d|[12]\\d\\d|3[0-5]\\d|36[0-5])$";
 
