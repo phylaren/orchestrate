@@ -6,14 +6,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.boot.web.servlet.AbstractFilterRegistrationBean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
-import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * без токена → 401; вхід → токен; з токеном → 200; без прав → 403.
  */
 @SpringBootTest
+@Transactional
 class SecurityFlowIntegrationTest {
 
     private static final String PASSWORD = "correct-horse-battery";
@@ -109,10 +110,8 @@ class SecurityFlowIntegrationTest {
     @Test
     @DisplayName("TraceIdFilter зареєстровано раніше за ланцюг Spring Security")
     void traceIdFilter_RunsBeforeSecurityChain() {
-        Map<String, FilterRegistrationBean> registrations = context.getBeansOfType(FilterRegistrationBean.class);
-
-        int traceOrder = registrations.get("traceIdFilterRegistration").getOrder();
-        int securityOrder = registrations.get("securityFilterChainRegistration").getOrder();
+        int traceOrder = context.getBean("traceIdFilterRegistration", AbstractFilterRegistrationBean.class).getOrder();
+        int securityOrder = context.getBean("securityFilterChainRegistration", AbstractFilterRegistrationBean.class).getOrder();
 
         assertThat(traceOrder).isLessThan(securityOrder);
     }
