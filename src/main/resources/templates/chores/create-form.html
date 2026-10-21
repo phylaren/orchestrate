@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Новий обов’язок — Orchestrate</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<main class="container">
+    <h1>Новий обов’язок</h1>
+    <form th:action="@{/households/{id}/chores(id=${householdId})}" th:object="${form}" method="post" class="form">
+
+        <div class="field">
+            <label for="name">Назва</label>
+            <input type="text" id="name" th:field="*{name}" th:errorclass="is-invalid" maxlength="120"/>
+            <div class="field-error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Помилка назви</div>
+        </div>
+
+        <div class="field">
+            <label for="description">Опис <span class="hint">(необов’язково)</span></label>
+            <textarea id="description" th:field="*{description}" th:errorclass="is-invalid" rows="3"></textarea>
+            <div class="field-error" th:if="${#fields.hasErrors('description')}" th:errors="*{description}">Помилка опису</div>
+        </div>
+
+        <div class="field">
+            <label for="recurrenceDays">Інтервал повторення, днів</label>
+            <input type="text" id="recurrenceDays" th:field="*{recurrenceDays}" th:errorclass="is-invalid"
+                   inputmode="numeric" maxlength="3"/>
+            <p class="hint">Ціле число від 1 до 365.</p>
+            <div class="field-error" th:if="${#fields.hasErrors('recurrenceDays')}" th:errors="*{recurrenceDays}">Помилка інтервалу</div>
+        </div>
+
+        <div class="field field-checkbox">
+            <input type="checkbox" id="requiresConfirmation" th:field="*{requiresConfirmation}"/>
+            <label for="requiresConfirmation">Виконання потребує підтвердження іншим учасником</label>
+        </div>
+
+        <div class="actions">
+            <button type="submit" class="btn btn-primary">Створити</button>
+            <a th:href="@{/households/{id}/chores(id=${householdId})}" class="btn">Скасувати</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

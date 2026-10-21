@@ -9,6 +9,7 @@ import genius.project.orchestrate.common.exception.ResourceNotFoundException;
 import genius.project.orchestrate.identity.CurrentUserProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -31,6 +32,7 @@ class ChoreLifecycleServiceImpl implements ChoreLifecycleService {
     }
 
     @Override
+    @PreAuthorize("@householdAccess.hasPermission(authentication, #householdId, 'MANAGE_CHORES')")
     public ChoreResponse createChore(UUID householdId, String name, String description,
                                      int recurrenceDays, boolean requiresConfirmation) {
         UUID actorId = currentUserProvider.getUserId();
