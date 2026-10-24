@@ -4,7 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Канал {@code log}: пише сповіщення в лог застосунку. Типовий вибір для dev-середовища.
+ * Канал {@code log}: пише сповіщення в лог застосунку.
  */
 public class LoggingNotificationSender implements NotificationSender {
 
