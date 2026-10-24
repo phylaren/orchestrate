@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
+<head th:replace="~{fragments/layout :: head('Вхід')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container narrow">
+    <h1>Вхід</h1>
+
+    <div th:if="${param.error}" class="alert alert-danger" role="alert">
+        Невірне ім’я користувача або пароль.
+    </div>
+    <div th:if="${param.logout}" class="alert alert-info" role="status">
+        Ви вийшли із системи.
+    </div>
+
+    <form th:action="@{/login}" method="post" class="form">
+        <div class="field">
+            <label for="username">Електронна пошта</label>
+            <input type="text" id="username" name="username" autocomplete="username" required/>
+        </div>
+
+        <div class="field">
+            <label for="password">Пароль</label>
+            <input type="password" id="password" name="password" autocomplete="current-password" required/>
+        </div>
+
+        <div class="actions">
+            <button type="submit" class="btn btn-primary">Увійти</button>
+        </div>
+    </form>
+</main>
+</body>
+</html>

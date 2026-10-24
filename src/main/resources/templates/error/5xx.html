@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
+<head th:replace="~{fragments/layout :: head('Внутрішня помилка')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container narrow error-page">
+    <p class="error-code">500</p>
+    <h1>Внутрішня помилка</h1>
+    <p>Сталася помилка на сервері. Спробуйте ще раз пізніше.</p>
+    <a class="btn btn-primary" th:href="@{/households}">До домогосподарств</a>
+</main>
+</body>
+</html>

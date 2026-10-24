@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
+<head th:replace="~{fragments/layout :: head('Помилка')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container narrow error-page">
+    <p class="error-code" th:text="${status}">400</p>
+    <h1>Запит не виконано</h1>
+    <p th:text="${message}">Опис помилки</p>
+    <a class="btn btn-primary" th:href="@{/households}">До домогосподарств</a>
+</main>
+</body>
+</html>
