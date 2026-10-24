@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
+<head th:replace="~{fragments/layout :: head('Сторінку не знайдено')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container narrow error-page">
+    <p class="error-code">404</p>
+    <h1>Сторінку не знайдено</h1>
+    <p>Перевірте адресу або поверніться до списку домогосподарств.</p>
+    <a class="btn btn-primary" th:href="@{/households}">До домогосподарств</a>
+</main>
+</body>
+</html>

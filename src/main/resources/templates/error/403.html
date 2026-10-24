@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
+<head th:replace="~{fragments/layout :: head('Доступ заборонено')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container narrow error-page">
+    <p class="error-code">403</p>
+    <h1>Доступ заборонено</h1>
+    <p>У вас немає прав для цієї дії.</p>
+    <a class="btn btn-primary" th:href="@{/households}">До домогосподарств</a>
+</main>
+</body>
+</html>

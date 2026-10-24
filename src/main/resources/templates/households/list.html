@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
+<head th:replace="~{fragments/layout :: head('Домогосподарства')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container">
+    <h1>Домогосподарства</h1>
+
+    <p th:if="${#lists.isEmpty(households)}" class="empty">
+        Ви ще не належите до жодного домогосподарства.
+    </p>
+
+    <div th:unless="${#lists.isEmpty(households)}" class="table-wrap">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>Назва</th>
+                <th>Роль</th>
+                <th>Обов’язки</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="household : ${households}">
+                <td th:text="${household.householdName}">Квартира</td>
+                <td>
+                    <span th:if="${household.owner}" class="badge badge-ok">Власник</span>
+                    <span th:unless="${household.owner}" class="badge">Мешканець</span>
+                </td>
+                <td>
+                    <a th:href="@{/households/{id}/chores(id=${household.householdId})}">Відкрити</a>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+</body>
+</html>
