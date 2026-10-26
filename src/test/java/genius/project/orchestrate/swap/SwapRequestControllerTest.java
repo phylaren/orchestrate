@@ -6,6 +6,7 @@ import genius.project.orchestrate.swap.dto.SwapRequestSummaryResponse;
 import genius.project.orchestrate.swap.exception.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -30,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(SwapRequestController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class SwapRequestControllerTest {
 
     private static final UUID CHORE_ID     = UUID.fromString("11111111-1111-1111-1111-111111111111");

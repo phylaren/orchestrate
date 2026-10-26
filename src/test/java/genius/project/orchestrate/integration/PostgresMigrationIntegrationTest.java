@@ -8,6 +8,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@SuppressWarnings({"SqlResolve", "SqlNoDataSourceInspection"})
 @IntegrationTest
 class PostgresMigrationIntegrationTest {
 
