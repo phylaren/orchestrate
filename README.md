@@ -573,6 +573,31 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 
 ---
 
+## Інтеграційні тести: зовнішні HTTP-сервіси та WireMock
+
+**WireMock у проєкті не застосовується — пункт 2.2 завдання лекції 8 неактуальний.**
+
+Orchestrate не викликає зовнішніх HTTP-сервісів у своїх бізнес-сценаріях: усі модулі
+(`user`, `household`, `chore`, `swap`) працюють лише з власною БД і спілкуються між собою
+через інтерфейси `*Client` та події Spring Modulith, а не через HTTP.
+
+Єдиний вихідний HTTP — webhook-канал спільного стартера сповіщень
+(`WebhookNotificationSender`, `orchestrate.notification.channel=webhook`). Він:
+
+- вмикається лише в профілі `prod`; у тестах діє канал `log` за замовчуванням,
+  тому інтеграційні й end-to-end тести жодних HTTP-запитів назовні не роблять;
+- уже перевіряється на рівні запиту (URL, метод, `Content-Type`, JSON) тестом
+  `WebhookNotificationSenderTest` через `MockRestServiceServer`, а вибір каналу —
+  `NotificationAutoConfigurationTest` і `ProdProfileNotificationTest`.
+
+Якщо в майбутньому з'явиться інтеграція з реальним зовнішнім сервісом (платіжний,
+push-провайдер тощо), для неї слід додати `wiremock-standalone` зі scope `test`,
+стаб як бін `WireMockServer` + `DynamicPropertyRegistrar` у `@TestConfiguration`
+(без `@MockitoBean` і `@DynamicPropertySource`, щоб не ламати кеш контекстів) і тести
+помилок 5xx та тайм-аутів.
+
+---
+
 ## Як змінювати автомат
 
 1. Додайте значення в enum — проєкт не скомпілюється, доки `switch` у `canTransitionTo` не оновлено.
