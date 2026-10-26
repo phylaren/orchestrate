@@ -1,0 +1,12 @@
+DELETE FROM scheduled_swaps;
+DELETE FROM swap_requests;
+DELETE FROM chore_completions;
+DELETE FROM rotation_order;
+DELETE FROM rotation_schedules;
+DELETE FROM chore_participants;
+DELETE FROM chores;
+DELETE FROM invitation_codes;
+DELETE FROM membership_permissions;
+DELETE FROM memberships;
+DELETE FROM households;
+DELETE FROM users;
