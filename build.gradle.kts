@@ -50,7 +50,15 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-thymeleaf-test")
     testImplementation("org.springframework.modulith:spring-modulith-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-security-test")
+    testImplementation("org.springframework.boot:spring-boot-resttestclient")
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
+
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testRuntimeOnly("org.postgresql:postgresql")
 }
 
 dependencyManagement {
