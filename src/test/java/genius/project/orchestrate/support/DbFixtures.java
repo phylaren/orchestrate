@@ -6,6 +6,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.UUID;
 
+@SuppressWarnings({"SqlResolve", "SqlNoDataSourceInspection"})
 public class DbFixtures {
 
     public static final String PASSWORD = "correct-horse-battery";
@@ -53,7 +54,7 @@ public class DbFixtures {
 
     public void invitationCode(String code, UUID householdId, UUID createdBy) {
         jdbc.sql("insert into invitation_codes (code, household_id, created_by_user_id, created_at, expires_at) "
-                        + "values (?, ?, ?, current_timestamp, current_timestamp + interval '7 days')")
+                        + "values (?, ?, ?, current_timestamp, current_timestamp + interval '7' day)")
                 .params(code, householdId, createdBy).update();
     }
 

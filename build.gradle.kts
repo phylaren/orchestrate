@@ -59,6 +59,7 @@ dependencies {
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testRuntimeOnly("org.postgresql:postgresql")
+    testRuntimeOnly("org.flywaydb:flyway-database-postgresql")
 }
 
 dependencyManagement {
