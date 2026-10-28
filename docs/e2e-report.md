@@ -56,6 +56,10 @@ Docker доступний на `ubuntu-latest`, тож Testcontainers працю
 
 Загальний час job: 3 хв 50 с. Статус `check`: успішно. Прогін: https://github.com/phylaren/orchestrate/actions/runs/40767103819
 
+![Перевірки Pull Request #17: усі перевірки пройшли](screenshots/pr-17-checks.png)
+
+Pull Request: https://github.com/phylaren/orchestrate/pull/17
+
 Розподіл E2E-тестів:
 
 | Клас | Тестів |
