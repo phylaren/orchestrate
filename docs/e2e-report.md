@@ -117,10 +117,29 @@
 
 ## 3. Трасування і скриншоти
 
-- Для кожного E2E-тесту зберігаються `trace.zip` (трасування) і знімок екрана: `final.png` при успіху, `failure.png` при падінні.
-- Шлях: `build/e2e-artifacts/<КласТесту>/<назваМетоду>/`.
-- Переглянути трасування: `npx playwright show-trace <шлях>/trace.zip` або https://trace.playwright.dev.
-- У CI каталог `build/e2e-artifacts` завантажується як артефакт `e2e-artifacts` при кожному прогоні (`if: always()`).
+Для кожного E2E-тесту зберігаються `trace.zip` і знімок екрана. Артефакти з прогону CI `40768903525` (коміт `77df614`) скопійовано в репозиторій.
+
+| # | Тест | Скриншот | Trace |
+|---|---|---|---|
+| 1 | `AuthAndHouseholdE2EIT`: вхід і створення дому | `screenshots/e2e/01-login-create-household.png` | `e2e-traces/01-login-create-household.trace.zip` |
+| 2 | `ChoreParticipationE2EIT`: приєднання і позначка виконання | `screenshots/e2e/02-join-and-complete-chore.png` | `e2e-traces/02-join-and-complete-chore.trace.zip` |
+| 3 | `ChorePermissionE2EIT`: мешканець без права, кнопки немає | `screenshots/e2e/03-resident-no-create-button.png` | `e2e-traces/03-resident-no-create-button.trace.zip` |
+| 4 | `ChorePermissionE2EIT`: прямий POST без права | `screenshots/e2e/04-resident-direct-post-403.png` | `e2e-traces/04-resident-direct-post-403.trace.zip` |
+| 5 | `ChorePermissionE2EIT`: власник бачить кнопку | `screenshots/e2e/05-owner-create-button.png` | `e2e-traces/05-owner-create-button.trace.zip` |
+
+Скріншот фіксує стан сторінки в кінці тесту. Для сценарію 4 POST виконується через `page.request()`, тому браузер лишається на дошці. Відповідь 403 перевіряється в самому тесті кодом статусу, а не на скріні.
+
+Переглянути трасування: `npx playwright show-trace docs/e2e-traces/<файл>.trace.zip` або завантажити файл на https://trace.playwright.dev.
+
+Ті самі файли CI завантажує як артефакт `e2e-artifacts` при кожному прогоні (`if: always()`).
+
+![Вхід і створення дому](screenshots/e2e/01-login-create-household.png)
+
+![Приєднання і позначка виконання](screenshots/e2e/02-join-and-complete-chore.png)
+
+![Мешканець без права: кнопки створення немає](screenshots/e2e/03-resident-no-create-button.png)
+
+![Власник бачить кнопку створення](screenshots/e2e/05-owner-create-button.png)
 
 ## 4. CI (GitHub Actions)
 
