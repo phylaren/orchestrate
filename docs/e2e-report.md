@@ -54,6 +54,19 @@ Docker доступний на `ubuntu-latest`, тож Testcontainers працю
 | Швидкі тести (`test`) | 590 | 590 | 0 | 31.7 с |
 | Наскрізні браузерні (`e2eTest`) | 7 | 7 | 0 | 16.9 с |
 
+Час кроків job (з GitHub Actions, `gh run view 40767103819 --json jobs`):
+
+| Крок | Час |
+|---|---|
+| Set up job | 2 с |
+| Check out repository | 1 с |
+| Set up JDK 25 | 1 с |
+| Set up Gradle | 3 с |
+| Install Playwright Chromium with system dependencies | 1 хв 43 с |
+| Run check (fast tests, then E2E tests) | 1 хв 52 с |
+| Upload test reports | 2 с |
+| **Разом job** | **≈ 3 хв 50 с** |
+
 Загальний час job: 3 хв 50 с. Статус `check`: успішно. Прогін: https://github.com/phylaren/orchestrate/actions/runs/40767103819
 
 ![Перевірки Pull Request #17: усі перевірки пройшли](screenshots/pr-17-checks.png)
