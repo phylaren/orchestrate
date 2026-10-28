@@ -32,3 +32,6 @@
 .alert-danger { background: #f8dcda; color: var(--danger); }
 .alert-info { background: #e3ecfb; color: var(--primary); }
 .badge { background: #eceff3; color: var(--muted); }
+
+.board-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.row-actions form { display: inline-block; margin: 0 .25rem .25rem 0; }

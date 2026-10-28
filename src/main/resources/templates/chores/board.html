@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
+<head th:replace="~{fragments/layout :: head('Обов’язки дому')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container">
+    <div th:if="${successMessage}" class="alert alert-success" role="status" th:text="${successMessage}">Готово</div>
+
+    <div class="board-header">
+        <h1>Обов’язки дому</h1>
+        <a th:if="${canManageChores}" th:href="@{/households/{id}/chores/new(id=${householdId})}"
+           class="btn btn-primary">Додати обов’язок</a>
+    </div>
+
+    <p th:if="${#lists.isEmpty(chores)}" class="empty">У цьому домі ще немає обов’язків.</p>
+
+    <div th:unless="${#lists.isEmpty(chores)}" class="table-wrap">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>Назва</th>
+                <th>Статус</th>
+                <th>Дії</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="chore : ${chores}" th:classappend="${chore.needsAttention} ? 'needs-attention'">
+                <td th:text="${chore.name}">Винести сміття</td>
+                <td>
+                    <span th:if="${chore.needsAttention}" class="badge badge-warning">Потребує уваги</span>
+                    <span th:unless="${chore.needsAttention}" class="badge badge-ok">Є виконавці</span>
+                    <span th:if="${chore.responsible}" class="badge">Ви відповідальні</span>
+                </td>
+                <td class="row-actions">
+                    <form th:unless="${chore.joined}" method="post"
+                          th:action="@{/households/{h}/chores/{c}/join(h=${householdId},c=${chore.id})}">
+                        <button type="submit" class="btn">Приєднатися</button>
+                    </form>
+                    <form th:if="${chore.responsible}" method="post"
+                          th:action="@{/households/{h}/chores/{c}/completions(h=${householdId},c=${chore.id})}">
+                        <button type="submit" class="btn btn-primary">Позначити виконаним</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+</body>
+</html>
