@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
+<head th:replace="~{fragments/layout :: head('Нове домогосподарство')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container narrow">
+    <h1>Нове домогосподарство</h1>
+
+    <form th:action="@{/households}" th:object="${form}" method="post" class="form">
+        <div class="field">
+            <label for="name">Назва домогосподарства</label>
+            <input type="text" id="name" th:field="*{name}" th:errorclass="is-invalid" maxlength="120"/>
+            <div class="field-error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Помилка назви</div>
+        </div>
+
+        <div class="actions">
+            <button type="submit" class="btn btn-primary">Створити</button>
+            <a th:href="@{/households}" class="btn">Скасувати</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>
