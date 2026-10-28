@@ -71,3 +71,33 @@ dependencyManagement {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+dependencies {
+    testImplementation("com.microsoft.playwright:playwright:1.64.0")
+}
+
+val e2eTest = tasks.register<Test>("e2eTest") {
+    description = "Наскрізні браузерні тести (*E2EIT) з Testcontainers і Playwright."
+    group = "verification"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    include("**/*E2EIT*")
+    systemProperty("e2e.artifacts.dir", layout.buildDirectory.dir("e2e-artifacts").get().asFile.path)
+    shouldRunAfter(tasks.named("test"))
+}
+
+tasks.named<Test>("test") {
+    exclude("**/*E2EIT*")
+}
+
+tasks.named("check") {
+    dependsOn(e2eTest)
+}
+
+tasks.register<JavaExec>("installPlaywright") {
+    description = "Завантажує Chromium для Playwright разом із системними залежностями."
+    group = "verification"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass = "com.microsoft.playwright.CLI"
+    args("install", "--with-deps", "chromium")
+}
