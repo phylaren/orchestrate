@@ -83,6 +83,7 @@ val e2eTest = tasks.register<Test>("e2eTest") {
     classpath = sourceSets["test"].runtimeClasspath
     include("**/*E2EIT*")
     systemProperty("e2e.artifacts.dir", layout.buildDirectory.dir("e2e-artifacts").get().asFile.path)
+    systemProperty("e2e.artifacts.always", "true")
     shouldRunAfter(tasks.named("test"))
 }
 

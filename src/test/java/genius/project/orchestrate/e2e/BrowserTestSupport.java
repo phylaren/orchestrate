@@ -21,8 +21,9 @@ import java.nio.file.Path;
 
 /**
  * Життєвий цикл браузера для наскрізних тестів: окремий браузер і контекст на кожен тест.
- * Під час тесту зйомка трасування ввімкнена; при падінні зберігаються {@code trace.zip}
- * і знімок екрана в каталозі {@code e2e.artifacts.dir} (за замовчуванням {@code build/e2e-artifacts}).
+ * Під час тесту зйомка трасування ввімкнена. Після тесту {@code trace.zip} і знімок екрана
+ * зберігаються в каталозі {@code e2e.artifacts.dir} (за замовчуванням {@code build/e2e-artifacts}):
+ * при падінні завжди, а при успіху — якщо задано {@code e2e.artifacts.always=true}.
  * Сторінка передається в тест параметром {@code Page page}.
  */
 public class BrowserTestSupport implements BeforeEachCallback, AfterEachCallback, TestWatcher, ParameterResolver {
@@ -31,6 +32,7 @@ public class BrowserTestSupport implements BeforeEachCallback, AfterEachCallback
     private static final String SESSION_KEY = "browser-session";
     private static final String FAILED_KEY = "failed";
     private static final String ARTIFACTS_PROPERTY = "e2e.artifacts.dir";
+    private static final String ALWAYS_PROPERTY = "e2e.artifacts.always";
     private static final String DEFAULT_ARTIFACTS_DIRECTORY = "build/e2e-artifacts";
 
     record BrowserSession(Playwright playwright, Browser browser, BrowserContext context, Page page) {
@@ -58,8 +60,9 @@ public class BrowserTestSupport implements BeforeEachCallback, AfterEachCallback
             return;
         }
         try {
-            if (Boolean.TRUE.equals(store(context).get(FAILED_KEY, Boolean.class))) {
-                saveArtifacts(context, session);
+            boolean failed = Boolean.TRUE.equals(store(context).get(FAILED_KEY, Boolean.class));
+            if (failed || Boolean.getBoolean(ALWAYS_PROPERTY)) {
+                saveArtifacts(context, session, failed);
             } else {
                 session.context().tracing().stop();
             }
@@ -85,11 +88,13 @@ public class BrowserTestSupport implements BeforeEachCallback, AfterEachCallback
         return session.page();
     }
 
-    private static void saveArtifacts(ExtensionContext context, BrowserSession session) throws IOException {
+    private static void saveArtifacts(ExtensionContext context, BrowserSession session, boolean failed)
+            throws IOException {
         Path directory = artifactsDirectory(context);
         Files.createDirectories(directory);
+        String screenshotName = failed ? "failure.png" : "final.png";
         session.page().screenshot(new Page.ScreenshotOptions()
-                .setPath(directory.resolve("failure.png"))
+                .setPath(directory.resolve(screenshotName))
                 .setFullPage(true));
         session.context().tracing().stop(new Tracing.StopOptions().setPath(directory.resolve("trace.zip")));
     }
