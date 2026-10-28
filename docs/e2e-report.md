@@ -1,19 +1,106 @@
 # Звіт: браузерні (E2E) тести, розділення рівнів і CI
 
+Гілка: `andrii-e2e-browser`. Основа: `main` (`6b50e0e`). Pull Request: https://github.com/phylaren/orchestrate/pull/17
+
 ## 1. Структура тестів за рівнями
 
-| Рівень | Імена класів | Запуск | Залежність |
-|---|---|---|---|
-| Модульні (швидкі) | `*Test` без Spring-контексту | `./gradlew test` | немає |
-| Веб-зрізи | `*ControllerTest`, `*WebUiIntegrationTest`, `*WebErrorAdviceTest` (`@WebMvcTest`, MockMvc) | `./gradlew test` | немає |
-| Інтеграційні | `*IntegrationTest`, `*ApiIntegrationTest`, `*PersistenceTest`, `*SmokeTest` | `./gradlew test` | Docker (Testcontainers, PostgreSQL) |
-| Наскрізні браузерні (E2E) | `*E2EIT` у пакеті `e2e` і `integration` | `./gradlew e2eTest` | Docker, Chromium (Playwright) |
+| Рівень | Імена класів | Запуск | Залежність | Кількість (CI) |
+|---|---|---|---|---|
+| Модульні (швидкі) | `*Test` без Spring-контексту | `./gradlew test` | немає | 302 |
+| Веб-зрізи | `*ControllerTest`, `*WebUiIntegrationTest`, `*WebErrorAdviceTest`, `*WebSecurityTest` (`@WebMvcTest`, MockMvc) | `./gradlew test` | немає | 164 |
+| Інтеграційні | `*IntegrationTest`, `*ApiIntegrationTest`, `*PersistenceTest`, `*SmokeTest` | `./gradlew test` | Docker (Testcontainers, PostgreSQL) | 124 |
+| Наскрізні браузерні (E2E) | `*E2EIT` у пакетах `e2e` і `integration` | `./gradlew e2eTest` | Docker, Chromium (Playwright) | 7 |
 
 Розділення налаштовано в `build.gradle.kts` (нові рядки в кінці файлу):
 - `test` виключає `**/*E2EIT*`;
-- `e2eTest` включає лише `**/*E2EIT*`, передає каталог артефактів `build/e2e-artifacts`;
+- `e2eTest` включає лише `**/*E2EIT*`, передає каталог артефактів `build/e2e-artifacts` і вмикає збереження trace та скриншотів (`e2e.artifacts.always=true`);
 - `check` залежить від `e2eTest`, тож `./gradlew check` запускає все;
 - `installPlaywright` завантажує Chromium з системними залежностями.
+
+Розподіл за класами (з CI-звітів, сортування за часом):
+
+| Клас | Тестів | Час |
+|---|---|---|
+| `AuthAndHouseholdE2EIT` | 1 | 11.74 с |
+| `ChoreCompletionApiIntegrationTest` | 12 | 4.49 с |
+| `ChoreApiIntegrationTest` | 11 | 4.15 с |
+| `HouseholdApiIntegrationTest` | 11 | 3.75 с |
+| `SwapRequestApiIntegrationTest` | 8 | 3.02 с |
+| `ChorePermissionE2EIT` | 3 | 2.74 с |
+| `ModularityTests` | 3 | 1.78 с |
+| `CoreDomainScenarioIntegrationTest` | 4 | 1.65 с |
+| `WebUiIntegrationTest` | 9 | 1.46 с |
+| `ChoreParticipationE2EIT` | 1 | 1.32 с |
+| `SecurityFlowIntegrationTest` | 4 | 1.12 с |
+| `CoreFlowE2EIT` | 2 | 1.11 с |
+| `UserApiIntegrationTest` | 7 | 1.10 с |
+| `OpenApiDocumentationTest` | 5 | 0.95 с |
+| `PasswordEncoderConfigTest` | 3 | 0.81 с |
+| `HouseholdServiceIntegrationTest` | 2 | 0.64 с |
+| `ChoreBoardWebControllerTest` | 5 | 0.58 с |
+| `SwapRequestServiceImplTest` | 33 | 0.45 с |
+| `HouseholdServiceImplTest` | 41 | 0.45 с |
+| `OrchestrateApplicationTests` | 1 | 0.42 с |
+| `UserAuthenticationIntegrationTest` | 2 | 0.36 с |
+| `ChorePersistenceTest` | 5 | 0.34 с |
+| `HouseholdPersistenceTest` | 14 | 0.33 с |
+| `DevUserSeederIntegrationTest` | 1 | 0.32 с |
+| `ChoreWebControllerTest` | 21 | 0.32 с |
+| `ChoreCompletionServiceImplTest` | 22 | 0.28 с |
+| `UserPersistenceTest` | 10 | 0.26 с |
+| `SwapRequestControllerTest` | 28 | 0.19 с |
+| `E2ESetupSmokeTest` | 1 | 0.18 с |
+| `RotationServiceImplTest` | 24 | 0.17 с |
+| `ChoreControllerTest` | 11 | 0.15 с |
+| `ChoreCompletionControllerTest` | 8 | 0.15 с |
+| `ChoreWebTemplatesTest` | 8 | 0.14 с |
+| `ChoreAssignmentControllerTest` | 2 | 0.13 с |
+| `UserServiceImplTest` | 7 | 0.11 с |
+| `SwapRequestPersistenceTest` | 15 | 0.10 с |
+| `ChoreParticipantServiceImplTest` | 12 | 0.09 с |
+| `WebErrorAdviceTest` | 4 | 0.09 с |
+| `HouseholdMemberControllerTest` | 7 | 0.08 с |
+| `AuthenticationManagerConfigTest` | 2 | 0.08 с |
+| `ChoreWebSecurityTest` | 5 | 0.08 с |
+| `HouseholdControllerTest` | 8 | 0.08 с |
+| `JwtAuthenticationFilterTest` | 6 | 0.08 с |
+| `JwtServiceTest` | 6 | 0.07 с |
+| `HouseholdCreateWebControllerTest` | 4 | 0.07 с |
+| `HouseholdInvitationControllerTest` | 6 | 0.06 с |
+| `SecurityConfigurationTest` | 8 | 0.05 с |
+| `HouseholdWebControllerTest` | 4 | 0.05 с |
+| `SwapRequestServicePersistenceTest` | 6 | 0.05 с |
+| `ChoreParticipantControllerTest` | 4 | 0.04 с |
+| `HouseholdPermissionsControllerTest` | 4 | 0.04 с |
+| `UserControllerTest` | 7 | 0.04 с |
+| `AuthControllerTest` | 5 | 0.04 с |
+| `UserAdminWebControllerTest` | 3 | 0.04 с |
+| `ChoreRotationControllerTest` | 2 | 0.03 с |
+| `TurnSwapRequestedEventListenerTest` | 2 | 0.02 с |
+| `CreateChoreFormValidationTest` | 30 | 0.02 с |
+| `ConfirmationStatusTest` | 24 | 0.02 с |
+| `UserHouseholdControllerTest` | 2 | 0.02 с |
+| `ChoreLifecycleServiceImplTest` | 10 | 0.02 с |
+| `PostgresMigrationIntegrationTest` | 2 | 0.01 с |
+| `RandomInvitationCodeGeneratorTest` | 2 | 0.01 с |
+| `JwtValidatorServiceTest` | 7 | 0.01 с |
+| `DevProfileNotificationTest` | 2 | 0.01 с |
+| `PermanentSwapStrategyTest` | 6 | 0.01 с |
+| `ProdProfileNotificationTest` | 2 | 0.01 с |
+| `SwapRequestStatusTest` | 15 | 0.01 с |
+| `ProblemDetailSecurityHandlersTest` | 4 | 0.01 с |
+| `HouseholdAccessTest` | 4 | 0.00 с |
+| `SensitiveDataMaskingConverterTest` | 8 | 0.00 с |
+| `DevUserSeederTest` | 2 | 0.00 с |
+| `TemporarySwapStrategyTest` | 6 | 0.00 с |
+| `SecurityContextCurrentUserProviderTest` | 4 | 0.00 с |
+| `ChoreNotificationListenerTest` | 1 | 0.00 с |
+| `JpaUserDetailsServiceTest` | 5 | 0.00 с |
+| `RoleAccessTest` | 3 | 0.00 с |
+| `UserPrincipalTest` | 5 | 0.00 с |
+| `UserCredentialsTest` | 1 | 0.00 с |
+| `LoginRequestTest` | 1 | 0.00 с |
+| `AuthResponseTest` | 1 | 0.00 с |
 
 ## 2. Браузерні сценарії (`src/test/java/genius/project/orchestrate/e2e`)
 
@@ -28,12 +115,12 @@
 Спільний життєвий цикл браузера: `e2e/BrowserTestSupport` (JUnit-розширення). Тест отримує `Page page` параметром.
 Базовий клас з адресою застосунку й фікстурами: `e2e/BrowserE2ETestBase`.
 
-## 3. Трасування і скриншоти при падінні
+## 3. Трасування і скриншоти
 
-- Трасування (`trace.zip`) і знімок екрана (`failure.png`) записуються лише для тестів, що впали.
+- Для кожного E2E-тесту зберігаються `trace.zip` (трасування) і знімок екрана: `final.png` при успіху, `failure.png` при падінні.
 - Шлях: `build/e2e-artifacts/<КласТесту>/<назваМетоду>/`.
 - Переглянути трасування: `npx playwright show-trace <шлях>/trace.zip` або https://trace.playwright.dev.
-- У CI каталог `build/e2e-artifacts` завантажується як артефакт `e2e-artifacts` при падінні.
+- У CI каталог `build/e2e-artifacts` завантажується як артефакт `e2e-artifacts` при кожному прогоні (`if: always()`).
 
 ## 4. CI (GitHub Actions)
 
@@ -41,20 +128,24 @@
 1. JDK 25 (temurin), кеш Gradle.
 2. `./gradlew installPlaywright`.
 3. `./gradlew check`: швидкі тести, потім E2E.
-4. Артефакти: `test-reports` (звіти й XML) завжди; `e2e-artifacts` при падінні.
+4. Артефакти: `test-reports` (звіти й XML) і `e2e-artifacts` (trace і скриншоти).
 
-Docker доступний на `ubuntu-latest`, тож Testcontainers працює без додаткових кроків.
+Docker доступний на `ubuntu-latest`, тому Testcontainers працює без додаткових кроків.
 
 ## 5. Результати
 
-**CI (GitHub Actions), прогін на push у гілку `andrii-e2e-browser` (коміт `de1d30e`):**
+**CI, прогін на push у гілку (коміт `de1d30e`):**
 
 | Набір | Всього | Пройшло | Впало | Час тестів |
 |---|---|---|---|---|
 | Швидкі тести (`test`) | 590 | 590 | 0 | 31.7 с |
 | Наскрізні браузерні (`e2eTest`) | 7 | 7 | 0 | 16.9 с |
 
-Час кроків job (з GitHub Actions, `gh run view 40767103819 --json jobs`):
+Прогін: https://github.com/phylaren/orchestrate/actions/runs/40767103819. Pull request #17 (`pull_request`-прогін `40767253350`) також пройшов успішно.
+
+![Перевірки Pull Request #17: усі перевірки пройшли](screenshots/pr-17-checks.png)
+
+Час кроків job (`gh run view 40767103819 --json jobs`):
 
 | Крок | Час |
 |---|---|
@@ -67,27 +158,14 @@ Docker доступний на `ubuntu-latest`, тож Testcontainers працю
 | Upload test reports | 2 с |
 | **Разом job** | **≈ 3 хв 50 с** |
 
-Загальний час job: 3 хв 50 с. Статус `check`: успішно. Прогін: https://github.com/phylaren/orchestrate/actions/runs/40767103819
+**Локально (macOS, без Docker):** `./gradlew test` дає 56 падінь через відсутність Docker, `./gradlew e2eTest` не стартує без Docker. У CI Docker доступний, і ці падіння не відтворюються.
 
-![Перевірки Pull Request #17: усі перевірки пройшли](screenshots/pr-17-checks.png)
+## 6. Пов'язані звіти
 
-Pull Request: https://github.com/phylaren/orchestrate/pull/17
+- Веб-інтерфейс, ролі та коди відповідей: [report.md](report.md) зі знімками для USER і ADMIN.
 
-Розподіл E2E-тестів:
+## 7. Обмеження
 
-| Клас | Тестів |
-|---|---|
-| `AuthAndHouseholdE2EIT` | 1 |
-| `ChoreParticipationE2EIT` | 1 |
-| `ChorePermissionE2EIT` | 3 |
-| `CoreFlowE2EIT` (тести Валерії) | 2 |
-
-Трасування і скриншоти: за правилом завдання артефакти зберігаються лише при падінні. Оскільки падінь не було, `trace.zip` і `failure.png` не створювались, артефакт `e2e-artifacts` не завантажувався.
-
-**Локально (macOS, без Docker):** `./gradlew test` дає 56 падінь через відсутність Docker, `e2eTest` не стартує без Docker. У CI ці обмеження не діють.
-
-## 6. Обмеження
-
-- Сторінки «Приєднатися» і «Позначити виконаним» з'явились у новій дошці `/households/{id}/board`; посилання на неї з існуючого списку домогосподарств не додано, бо це зміна старого шаблону.
+- Сторінки «Приєднатися» і «Позначити виконаним» розміщено в новій дошці `/households/{id}/board`. Посилання на неї зі старого списку домогосподарств не додано, бо це зміна старого шаблону.
 - Форма створення домогосподарства доступна за адресою `/households/new`; посилання з навігації також не додано з тієї самої причини.
-- Сценарій без права перевіряє GET сторінки створення обов'язку лише через UI (кнопки немає). Сам GET форми для мешканця без права відкривається (рендер), а заборона діє на POST. Закрити GET можна в існуючому контролері Валерії, що виходить за межі цього завдання.
+- Для мешканця без права GET сторінки створення обов'язку відкривається (рендер), а заборона діє на POST. Закрити GET можна в існуючому контролері, що виходить за межі цього завдання.
