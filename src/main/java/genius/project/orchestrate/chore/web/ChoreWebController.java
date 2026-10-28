@@ -3,6 +3,7 @@ package genius.project.orchestrate.chore.web;
 import genius.project.orchestrate.chore.ChoreLifecycleService;
 import jakarta.validation.Valid;
 import org.springframework.beans.propertyeditors.StringTrimmerEditor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -43,6 +44,7 @@ class ChoreWebController {
     }
 
     @GetMapping("/new")
+    @PreAuthorize("@householdAccess.hasPermission(authentication, #householdId, 'MANAGE_CHORES')")
     String showCreateForm(@PathVariable UUID householdId, Model model) {
         model.addAttribute("householdId", householdId);
         model.addAttribute("form", CreateChoreForm.empty());
