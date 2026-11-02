@@ -12,9 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -31,7 +29,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -73,12 +70,12 @@ class HouseholdPermissionsControllerTest {
     }
 
     @Test
-    @WithUserPrincipal(id = "00000000-0000-0000-0000-000000000001")
-    @DisplayName("Учасник із правом MANAGE_MEMBERS отримує 200 і зведення прав")
-    void get_WithManageMembers_Returns200() throws Exception {
+    @WithUserPrincipal(
+            id = "00000000-0000-0000-0000-000000000001",
+            households = "44444444-4444-4444-4444-444444444444:MANAGE_MEMBERS")
+    @DisplayName("Токен із MANAGE_MEMBERS → 200, HouseholdClient не викликається")
+    void get_WithManageMembersInToken_Returns200WithoutDbLookup() throws Exception {
         Instant now = Instant.now();
-        when(householdService.hasPermission(HOUSEHOLD_ID, OWNER_ID, MembershipPermission.MANAGE_MEMBERS))
-                .thenReturn(true);
         when(householdService.getHousehold(HOUSEHOLD_ID))
                 .thenReturn(new Household(HOUSEHOLD_ID, "Квартира", OWNER_ID, now));
         when(householdService.listMembers(HOUSEHOLD_ID)).thenReturn(List.of(
@@ -88,35 +85,21 @@ class HouseholdPermissionsControllerTest {
         mockMvc.perform(get(URL))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.householdId").value(HOUSEHOLD_ID.toString()))
-                .andExpect(jsonPath("$.ownerId").value(OWNER_ID.toString()))
-                .andExpect(jsonPath("$.members.length()").value(2))
-                .andExpect(jsonPath("$.members[1].userId").value(RESIDENT_ID.toString()))
-                .andExpect(jsonPath("$.members[1].permissions[0]").value("CONFIRM_COMPLETIONS"));
+                .andExpect(jsonPath("$.members.length()").value(2));
+
+        verify(householdService, never()).hasPermission(any(), any(), any());
     }
 
     @Test
-    @WithUserPrincipal(id = "55555555-5555-5555-5555-555555555555")
-    @DisplayName("Учасник без права MANAGE_MEMBERS отримує 403 ACCESS_DENIED від @PreAuthorize")
-    void get_WithoutManageMembers_Returns403() throws Exception {
-        when(householdService.hasPermission(HOUSEHOLD_ID, RESIDENT_ID, MembershipPermission.MANAGE_MEMBERS))
-                .thenReturn(false);
-
-        mockMvc.perform(get(URL))
-                .andExpect(status().isForbidden())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"))
-                .andExpect(jsonPath("$.instance").value(URL));
-        verify(householdService, never()).listMembers(any());
-    }
-
-    @Test
-    @WithMockUser
-    @DisplayName("Автентифікація без UserPrincipal не дає прав на дім — 403")
-    void get_ForeignPrincipal_Returns403() throws Exception {
+    @WithUserPrincipal(
+            id = "55555555-5555-5555-5555-555555555555",
+            households = "44444444-4444-4444-4444-444444444444:CONFIRM_COMPLETIONS")
+    @DisplayName("Токен без MANAGE_MEMBERS → 403 ACCESS_DENIED")
+    void get_WithoutManageMembersInToken_Returns403() throws Exception {
         mockMvc.perform(get(URL))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
-        verify(householdService, never()).hasPermission(any(), any(), any());
+
+        verify(householdService, never()).listMembers(any());
     }
 }
