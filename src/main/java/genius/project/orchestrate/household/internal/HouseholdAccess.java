@@ -2,6 +2,7 @@ package genius.project.orchestrate.household.internal;
 
 import genius.project.orchestrate.household.MembershipPermission;
 import genius.project.orchestrate.household.client.HouseholdClient;
+import genius.project.orchestrate.identity.TokenAuthentication;
 import genius.project.orchestrate.user.UserPrincipal;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
@@ -23,10 +24,17 @@ public class HouseholdAccess {
     }
 
     public boolean hasPermission(Authentication authentication, UUID householdId, String permission) {
+        MembershipPermission requiredPermission = MembershipPermission.valueOf(permission);
+
+        // Шлях 1: Stateless API (JWT). Беремо права з токена, без запиту в БД.
+        if (authentication instanceof TokenAuthentication tokenAuth) {
+            return tokenAuth.permissionsIn(householdId).contains(requiredPermission.name());
+        }
+
+        // Шлях 2: Fallback (веб-сесія, тести). Йдемо в БД через HouseholdClient.
         if (!(authentication.getPrincipal() instanceof UserPrincipal principal)) {
             return false;
         }
-        return householdClient.hasPermission(householdId, principal.getId(),
-                MembershipPermission.valueOf(permission));
+        return householdClient.hasPermission(householdId, principal.getId(), requiredPermission);
     }
 }
