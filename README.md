@@ -791,6 +791,12 @@ ORCHESTRATE_JWT_SECRET="$(openssl rand -base64 48)" \
 ---
 
 ## Безпека API: SecurityFilterChain, CORS, 401/403
+| `TokenClaimsContributor` (публічний інтерфейс) | `identity/TokenClaimsContributor.java` |
+| `HouseholdTokenClaimsContributor` | `household/internal/HouseholdTokenClaimsContributor.java` |
+| `TokenAuthentication` (principal + мапа прав) | `identity/TokenAuthentication.java` |
+| Перевірка прав з токена/fallback | `household/internal/HouseholdAccess.java` |
+| SpEL-бін `@householdAccess` | `household/internal/HouseholdAccess.java` |
+
 
 API захищене безсесійно (stateless): кожен запит до захищеного ресурсу має містити заголовок
 `Authorization: Bearer <JWT>`, отриманий через `POST /api/v1/auth/login`. Сервер не створює `HttpSession`
@@ -822,21 +828,30 @@ HTTP-запит
 Публічні маршрути (`permitAll`): `/api/v1/auth/**`, `POST /api/v1/users` (реєстрація), `/swagger-ui.html`,
 `/swagger-ui/**`, `/v3/api-docs/**`, `/h2-console/**`, `/error`. Усі інші запити потребують автентифікації.
 
-### CORS
+### Права в JWT (claims `households`)
 
-`identity/internal/CorsConfig.java`. Дозволені джерела задаються явним списком у властивості
-`orchestrate.security.cors.allowed-origins` (змінна оточення `ORCHESTRATE_SECURITY_CORS_ALLOWED_ORIGINS`),
-за замовчуванням `http://localhost:3000,http://localhost:5173`.
+Замість того, щоб робити запит у БД під час кожної перевірки прав, дозволи зберігаються безпосередньо в токені.
 
-| Параметр | Значення |
+**Як це працює:**
+1. Під час логіну `AuthController` збирає claims від усіх бінів `TokenClaimsContributor`.
+2. `HouseholdTokenClaimsContributor` дістає з БД усі доми користувача і формує мапу вигляду:
+   `{"<householdId>": ["MANAGE_CHORES", "INVITE_MEMBERS"]}`. Кількість домів обмежена 50.
+3. `JwtService` підписує токен із цим claim.
+4. `JwtAuthenticationFilter` розпаковує токен і створює `TokenAuthentication`, який зберігає `UserPrincipal` і мапу прав.
+5. `HouseholdAccess` (SpEL-бін `@householdAccess`) перевіряє права:
+   * якщо це `TokenAuthentication` — бере права з токена (БД не чіпаємо);
+   * якщо це звичайна сесія (веб-ланцюг, тести) — fallback на `HouseholdClient` (запит у БД).
+
+**Захищені ендпоінти (`@PreAuthorize`):**
+
+| Ендпоінт | Правило |
 |---|---|
-| Методи | `GET, POST, PUT, PATCH, DELETE, OPTIONS` |
-| Дозволені заголовки | `Authorization`, `Content-Type`, `X-Trace-Id` |
-| Доступні клієнту заголовки | `X-Trace-Id`, `Location`, `WWW-Authenticate` |
-| `allowCredentials` | `false` — токен у заголовку, а не в куках |
-| `maxAge` | 3600 с |
-
-Preflight-запит із недозволеного джерела отримує 403.
+| `POST/GET/DELETE /api/v1/households/{id}/invitation-code` | `hasPermission(authentication, #householdId, 'INVITE_MEMBERS')` |
+| `PUT /api/v1/households/{h}/members/{u}/permissions` | `hasPermission(authentication, #householdId, 'MANAGE_MEMBERS')` |
+| `DELETE /api/v1/households/{h}/members/{u}` | `#userId == authentication.principal.id or hasPermission(..., 'MANAGE_MEMBERS')` |
+| `PUT /api/v1/households/{h}/chores/{c}/participants/{u}` | `hasPermission(authentication, #householdId, 'MANAGE_CHORES')` |
+| `DELETE /api/v1/households/{h}/chores/{c}/participants/{u}` | `#userId == authentication.principal.id or hasPermission(..., 'MANAGE_CHORES')` |
+| `GET /api/v1/households/{id}/members/permissions` | `hasPermission(authentication, #householdId, 'MANAGE_MEMBERS')` |
 
 ### Помилки 401 і 403 (RFC 9457)
 
@@ -868,15 +883,21 @@ Preflight-запит із недозволеного джерела отриму
 Бізнес-перевірки сервісів (`NOT_HOUSEHOLD_MEMBER`, `MISSING_PERMISSION` тощо) працюють як і раніше та
 повертають 403 через `GlobalExceptionHandler` зі своїми кодами.
 
-### Method Security
+### CORS
 
-| Ендпоінт | Правило | Результат |
-|---|---|---|
-| `GET /api/v1/users/me` | `isAuthenticated()` | дані користувача з токена: id, email, ролі |
-| `GET /api/v1/households/{householdId}/members/permissions` | `@householdAccess.hasPermission(authentication, #householdId, 'MANAGE_MEMBERS')` | зведення прав учасників; 403 для учасника без `MANAGE_MEMBERS` |
+`identity/internal/CorsConfig.java`. Дозволені джерела задаються явним списком у властивості
+`orchestrate.security.cors.allowed-origins` (змінна оточення `ORCHESTRATE_SECURITY_CORS_ALLOWED_ORIGINS`),
+за замовчуванням `http://localhost:3000,http://localhost:5173`.
 
-`household/internal/HouseholdAccess.java` — бін `householdAccess` для SpEL-виразів: перевіряє право поточного
-користувача в домі через `HouseholdClient.hasPermission`. Власник дому має всі права.
+| Параметр | Значення |
+|---|---|
+| Методи | `GET, POST, PUT, PATCH, DELETE, OPTIONS` |
+| Дозволені заголовки | `Authorization`, `Content-Type`, `X-Trace-Id` |
+| Доступні клієнту заголовки | `X-Trace-Id`, `Location`, `WWW-Authenticate` |
+| `allowCredentials` | `false` — токен у заголовку, а не в куках |
+| `maxAge` | 3600 с |
+
+Preflight-запит із недозволеного джерела отримує 403.
 
 ### Перевірка: 401 → вхід → 200 → 403
 
@@ -895,8 +916,8 @@ sh scripts/security-check.sh         # термінал 2; BASE_URL=http://local
 | 4 | `GET /api/v1/households/{id}/members/permissions` мешканцем без `MANAGE_MEMBERS` | 403 `ACCESS_DENIED` |
 
 **Postman / Newman.** Окрема колекція `postman/security.collection.json` з тими самими кроками, а також
-перевіркою підробленого токена (401 `INVALID_TOKEN`), відсутності `Set-Cookie` і заголовка `X-Trace-Id`
-у кожній відповіді:
+перевіркою підробленого токена (401 `INVALID_TOKEN`), відсутності `Set-Cookie`, наявності claim `households`
+у токені після логіну та заголовка `X-Trace-Id` у кожній відповіді:
 
 ```bash
 cd postman
@@ -908,16 +929,17 @@ npx newman run security.collection.json -e env.json
 | Тест | Що перевіряє |
 |---|---|
 | `identity/internal/SecurityConfigurationTest` | 401 без токена і з підробленим токеном, 200 з валідним токеном і `@WithMockUser`, публічна реєстрація без CSRF, CORS preflight для дозволеного і недозволеного джерела, відсутність `Set-Cookie` |
-| `household/HouseholdPermissionsControllerTest` | `@PreAuthorize` зі SpEL: 401 анонімно, 200 з `MANAGE_MEMBERS`, 403 без права, 403 для автентифікації без `UserPrincipal` |
+| `household/HouseholdPermissionsControllerTest` | `@PreAuthorize` зі SpEL: 401 анонімно, 200 з `MANAGE_MEMBERS` (з токена, без БД), 403 без права, 403 для автентифікації без `UserPrincipal` |
 | `identity/internal/ProblemDetailSecurityHandlersTest` | формат ProblemDetail, коди та заголовок `WWW-Authenticate` для 401 і 403; текст внутрішнього винятку не потрапляє у відповідь |
-| `household/internal/HouseholdAccessTest` | логіка біна `householdAccess` |
-| `identity/SecurityFlowIntegrationTest` | повний контекст із БД, Argon2id і JWT: 401 → вхід → 200 → 403, невірний пароль, підроблений токен, порядок фільтрів |
+| `household/internal/HouseholdAccessTest` | логіка біна `householdAccess`: гілка «з токена» не чіпає БД, fallback на `HouseholdClient` працює |
+| `identity/internal/JwtAuthenticationFilterTest` | claims з токена потрапляють у `TokenAuthentication.permissionsIn()`, автентифікація інших типів не перезаписується |
+| `identity/SecurityFlowIntegrationTest` | повний контекст із БД, Argon2id і JWT: 401 → вхід → 200 → 403, невірний пароль, підроблений токен, перевірка 403 на `invitation-code` для мешканця без `INVITE_MEMBERS`, порядок фільтрів |
+| `identity/JwtServiceTest` | claim `households` з `extraClaims` потрапляє в токен |
 
 Для `@WebMvcTest` конфігурацію безпеки підключає `SecurityWebMvcTestConfiguration`, а анотація
-`@WithUserPrincipal` кладе в контекст справжній `UserPrincipal` (його очікують `@AuthenticationPrincipal`
-і `householdAccess`).
-
----
+`@WithUserPrincipal` кладе в контекст справжній `UserPrincipal`. За допомогою параметра `households`
+(наприклад, `households = "4444...:MANAGE_MEMBERS"`) створюється `TokenAuthentication` з claims, що дозволяє
+тестувати гілку «з токена» без запиту в БД.
 
 ## Розгортання: Docker Compose
 
