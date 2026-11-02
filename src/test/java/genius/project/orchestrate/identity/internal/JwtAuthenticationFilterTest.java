@@ -1,6 +1,7 @@
 package genius.project.orchestrate.identity.internal;
 
 import genius.project.orchestrate.identity.JwtValidatorService;
+import genius.project.orchestrate.user.UserPrincipal;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.AfterEach;
@@ -16,6 +17,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.AuthenticationEntryPoint;
+
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -81,10 +84,8 @@ class JwtAuthenticationFilterTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
 
-        UserDetails user = User.withUsername("alice@example.com")
-                .password("irrelevant")
-                .authorities("ROLE_USER")
-                .build();
+        UserPrincipal user = new UserPrincipal(
+                UUID.randomUUID(), "alice@example.com", "Alice", "irrelevant", true);
 
         when(jwtValidatorService.extractUsername("valid.jwt.token")).thenReturn("alice@example.com");
         when(userDetailsService.loadUserByUsername("alice@example.com")).thenReturn(user);

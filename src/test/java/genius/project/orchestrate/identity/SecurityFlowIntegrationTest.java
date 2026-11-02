@@ -23,10 +23,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Наскрізна перевірка безпеки на повному контексті з БД, справжнім Argon2id та JWT:
- * без токена → 401; вхід → токен; з токеном → 200; без прав → 403.
- */
 @SpringBootTest
 @Transactional
 class SecurityFlowIntegrationTest {
@@ -52,28 +48,51 @@ class SecurityFlowIntegrationTest {
         register("Owner", ownerEmail);
         register("Resident", residentEmail);
 
-        // 1. Без токена — 401
         mockMvc.perform(get("/api/v1/users/me"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
 
-        // 2. Вхід — токен доступу
         String ownerToken = login(ownerEmail);
         String residentToken = login(residentEmail);
 
-        // 3. З токеном — 200
         mockMvc.perform(get("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, bearer(ownerToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value(ownerEmail));
 
-        String householdId = createHouseholdWithResident(ownerToken, residentToken);
+        String household = mockMvc.perform(post("/api/v1/households")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(ownerToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Квартира"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String householdId = JsonPath.read(household, "$.id");
+
+        ownerToken = login(ownerEmail);
+
+        String invitation = mockMvc.perform(post("/api/v1/households/" + householdId + "/invitation-code")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(ownerToken)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String code = JsonPath.read(invitation, "$.code");
+
+        mockMvc.perform(post("/api/v1/households/join")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(residentToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"code":"%s"}
+                                """.formatted(code)))
+                .andExpect(status().isCreated());
+
+        residentToken = login(residentEmail);
+
         String permissionsUrl = "/api/v1/households/" + householdId + "/members/permissions";
 
         mockMvc.perform(get(permissionsUrl).header(HttpHeaders.AUTHORIZATION, bearer(ownerToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.members.length()").value(2));
 
-        // 4. Користувач без права MANAGE_MEMBERS — 403
         mockMvc.perform(get(permissionsUrl).header(HttpHeaders.AUTHORIZATION, bearer(residentToken)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
@@ -135,33 +154,6 @@ class SecurityFlowIntegrationTest {
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andReturn().getResponse().getContentAsString();
         return JsonPath.read(body, "$.accessToken");
-    }
-
-    private String createHouseholdWithResident(String ownerToken, String residentToken) throws Exception {
-        String household = mockMvc.perform(post("/api/v1/households")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(ownerToken))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name":"Квартира"}
-                                """))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        String householdId = JsonPath.read(household, "$.id");
-
-        String invitation = mockMvc.perform(post("/api/v1/households/" + householdId + "/invitation-code")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(ownerToken)))
-                .andExpect(status().is2xxSuccessful())
-                .andReturn().getResponse().getContentAsString();
-        String code = JsonPath.read(invitation, "$.code");
-
-        mockMvc.perform(post("/api/v1/households/join")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(residentToken))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"code":"%s"}
-                                """.formatted(code)))
-                .andExpect(status().isCreated());
-        return householdId;
     }
 
     private static String bearer(String token) {

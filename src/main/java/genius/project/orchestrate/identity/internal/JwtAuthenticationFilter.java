@@ -21,6 +21,8 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -53,16 +55,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = authHeader.substring(BEARER_PREFIX.length());
 
         try {
-            Claims claims = jwtValidatorService.extractAllClaims(token);
-            String username = claims.getSubject();
-
+            String username = jwtValidatorService.extractUsername(token);
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                 if (jwtValidatorService.isTokenValid(token, userDetails)) {
                     if (userDetails instanceof UserPrincipal principal) {
+                        Claims claims = jwtValidatorService.extractAllClaims(token);
+                        Map<String, Object> extraClaims = claims != null ? claims : Collections.emptyMap();
                         TokenAuthentication authentication = new TokenAuthentication(
-                                principal,
-                                claims,
+                                principal, extraClaims,
                                 new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authentication);
                     }

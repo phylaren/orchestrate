@@ -70,6 +70,8 @@ class CoreFlowE2EIT {
                 .expectBody(String.class).returnResult().getResponseBody();
         UUID householdId = UUID.fromString(JsonPath.read(householdBody, "$.id"));
 
+        aliceToken = login("alice.e2e@example.com");
+
         String codeBody = client.post().uri("/api/v1/households/{id}/invitation-code", householdId)
                 .header("Authorization", "Bearer " + aliceToken)
                 .exchange()
@@ -86,6 +88,8 @@ class CoreFlowE2EIT {
                 .exchange()
                 .expectStatus().isCreated();
 
+        bobToken = login("bob.e2e@example.com");
+
         String choreBody = client.post().uri("/api/v1/chores")
                 .header("Authorization", "Bearer " + aliceToken)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -97,12 +101,12 @@ class CoreFlowE2EIT {
                 .expectBody(String.class).returnResult().getResponseBody();
         UUID choreId = UUID.fromString(JsonPath.read(choreBody, "$.id"));
 
-        client.post().uri("/api/v1/chores/{id}/participants", choreId)
+        client.post().uri("/api/v1/households/{h}/chores/{c}/participants", householdId, choreId)
                 .header("Authorization", "Bearer " + aliceToken)
                 .exchange()
                 .expectStatus().isCreated();
 
-        client.post().uri("/api/v1/chores/{id}/participants", choreId)
+        client.post().uri("/api/v1/households/{h}/chores/{c}/participants", householdId, choreId)
                 .header("Authorization", "Bearer " + bobToken)
                 .exchange()
                 .expectStatus().isCreated();

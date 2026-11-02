@@ -1,5 +1,6 @@
 package genius.project.orchestrate.identity;
 
+import genius.project.orchestrate.user.UserPrincipal;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -9,14 +10,15 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.UUID;
+
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -46,15 +48,13 @@ class AuthControllerTest {
 
     @Test
     void login_withValidCredentials_returnsBearerToken() throws Exception {
-        UserDetails user = User.withUsername("alice@example.com")
-                .password("irrelevant")
-                .authorities("ROLE_USER")
-                .build();
+        UserPrincipal principal = new UserPrincipal(
+                UUID.randomUUID(), "alice@example.com", "Alice", "irrelevant", true);
         Authentication authentication = new UsernamePasswordAuthenticationToken(
-                user, null, user.getAuthorities());
+                principal, null, principal.getAuthorities());
 
         when(authenticationManager.authenticate(any())).thenReturn(authentication);
-        when(jwtService.generateToken(user)).thenReturn("signed.jwt.token");
+        when(jwtService.generateToken(eq(principal), any())).thenReturn("signed.jwt.token");
         when(jwtService.getExpirationMillis()).thenReturn(900_000L);
 
         mockMvc.perform(post("/api/v1/auth/login")

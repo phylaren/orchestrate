@@ -44,6 +44,9 @@ class CoreDomainScenarioIntegrationTest extends IntegrationTestBase {
                 .andReturn().getResponse().getContentAsString();
         UUID householdId = UUID.fromString(JsonPath.read(householdJson, "$.id"));
 
+        // Оновлюємо токен, щоб отримати нові права на створений дім
+        aliceToken = login("alice@example.com");
+
         String codeJson = call(post("/api/v1/households/{id}/invitation-code", householdId), aliceToken)
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
@@ -54,6 +57,9 @@ class CoreDomainScenarioIntegrationTest extends IntegrationTestBase {
                 """.formatted(inviteCode))
                 .andExpect(status().isCreated());
 
+        // Оновлюємо токен Боба, бо він приєднався до дому
+        bobToken = login("bob@example.com");
+
         assertThat(db.count("memberships", "household_id = ?", householdId)).isEqualTo(2);
 
         String choreJson = call(post("/api/v1/chores"), aliceToken, """
@@ -63,8 +69,8 @@ class CoreDomainScenarioIntegrationTest extends IntegrationTestBase {
                 .andReturn().getResponse().getContentAsString();
         UUID choreId = UUID.fromString(JsonPath.read(choreJson, "$.id"));
 
-        call(post("/api/v1/chores/{id}/participants", choreId), aliceToken).andExpect(status().isCreated());
-        call(post("/api/v1/chores/{id}/participants", choreId), bobToken).andExpect(status().isCreated());
+        call(post("/api/v1/households/{h}/chores/{c}/participants", householdId, choreId), aliceToken).andExpect(status().isCreated());
+        call(post("/api/v1/households/{h}/chores/{c}/participants", householdId, choreId), bobToken).andExpect(status().isCreated());
 
         call(get("/api/v1/chores/{id}/assignment", choreId), aliceToken)
                 .andExpect(status().isOk())
@@ -98,6 +104,9 @@ class CoreDomainScenarioIntegrationTest extends IntegrationTestBase {
                 """).andReturn().getResponse().getContentAsString();
         UUID householdId = UUID.fromString(JsonPath.read(householdJson, "$.id"));
 
+        // Оновлюємо токен Аліси
+        aliceToken = login("alice@example.com");
+
         db.member(householdId, bobId);
         call(put("/api/v1/households/{h}/members/{u}/permissions", householdId, bobId), aliceToken, """
                 {"permissions":[]}
@@ -114,7 +123,7 @@ class CoreDomainScenarioIntegrationTest extends IntegrationTestBase {
                 """.formatted(householdId)).andReturn().getResponse().getContentAsString();
         UUID choreId = UUID.fromString(JsonPath.read(choreJson, "$.id"));
 
-        call(post("/api/v1/chores/{id}/participants", choreId), aliceToken).andExpect(status().isCreated());
+        call(post("/api/v1/households/{h}/chores/{c}/participants", householdId, choreId), aliceToken).andExpect(status().isCreated());
         String compJson = call(post("/api/v1/chores/{id}/completions", choreId), aliceToken)
                 .andReturn().getResponse().getContentAsString();
         UUID completionId = UUID.fromString(JsonPath.read(compJson, "$.id"));
@@ -133,6 +142,9 @@ class CoreDomainScenarioIntegrationTest extends IntegrationTestBase {
                 {"name":"Порожній дім"}
                 """).andReturn().getResponse().getContentAsString();
         UUID householdId = UUID.fromString(JsonPath.read(householdJson, "$.id"));
+
+        // Оновлюємо токен Аліси
+        aliceToken = login("alice@example.com");
 
         String choreJson = call(post("/api/v1/chores"), aliceToken, """
                 {"householdId":"%s","name":"Самотній обов'язок","recurrenceDays":1,"requiresConfirmation":false}
@@ -163,18 +175,21 @@ class CoreDomainScenarioIntegrationTest extends IntegrationTestBase {
                 """).andReturn().getResponse().getContentAsString();
         UUID householdId = UUID.fromString(JsonPath.read(householdJson, "$.id"));
 
+        // Оновлюємо токен Аліси
+        aliceToken = login("alice@example.com");
+
         String choreJson = call(post("/api/v1/chores"), aliceToken, """
                 {"householdId":"%s","name":"Черговий обов'язок","recurrenceDays":1,"requiresConfirmation":false}
                 """.formatted(householdId)).andReturn().getResponse().getContentAsString();
         UUID choreId = UUID.fromString(JsonPath.read(choreJson, "$.id"));
 
-        call(post("/api/v1/chores/{id}/participants", choreId), aliceToken).andExpect(status().isCreated());
-        call(post("/api/v1/chores/{id}/participants", choreId), bobToken).andExpect(status().isCreated());
+        call(post("/api/v1/households/{h}/chores/{c}/participants", householdId, choreId), aliceToken).andExpect(status().isCreated());
+        call(post("/api/v1/households/{h}/chores/{c}/participants", householdId, choreId), bobToken).andExpect(status().isCreated());
 
         assertThat(db.count("rotation_schedules", "chore_id = ? and current_index = 0 and current_cycle_number = 1", choreId))
                 .isEqualTo(1);
 
-        call(delete("/api/v1/chores/{id}/participants/{userId}", choreId, aliceId), aliceToken)
+        call(delete("/api/v1/households/{h}/chores/{c}/participants/{userId}", householdId, choreId, aliceId), aliceToken)
                 .andExpect(status().isNoContent());
 
         assertThat(db.count("chore_participants", "chore_id = ? and user_id = ?", choreId, aliceId)).isZero();
