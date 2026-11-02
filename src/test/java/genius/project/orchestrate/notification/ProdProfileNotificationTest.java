@@ -16,7 +16,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = {
         "ORCHESTRATE_NOTIFICATION_WEBHOOK_URL=https://hooks.example.test/orchestrate",
-        "security.jwt.secret=test-secret-for-prod-profile-test-min-32-bytes-long"
+        "security.jwt.secret=test-secret-for-prod-profile-test-min-32-bytes-long",
+        // Профіль prod вимагає БД зі змінних оточення; для перевірки сповіщень достатньо H2.
+        "ORCHESTRATE_DB_URL=jdbc:h2:mem:prod-profile;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH",
+        "ORCHESTRATE_DB_USERNAME=sa",
+        "ORCHESTRATE_DB_PASSWORD="
 })
 @ActiveProfiles("prod")
 class ProdProfileNotificationTest {

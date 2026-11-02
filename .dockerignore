@@ -1,0 +1,11 @@
+.git
+.github
+.gradle
+.idea
+**/build
+**/out
+logs
+docs
+postman
+scripts
+.env
