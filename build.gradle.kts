@@ -45,6 +45,8 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
 
     runtimeOnly("com.h2database:h2")
+    runtimeOnly("org.postgresql:postgresql")
+    runtimeOnly("org.flywaydb:flyway-database-postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-starter-thymeleaf-test")
@@ -58,8 +60,6 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-postgresql")
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testRuntimeOnly("org.postgresql:postgresql")
-    testRuntimeOnly("org.flywaydb:flyway-database-postgresql")
 }
 
 dependencyManagement {
