@@ -27,6 +27,7 @@
 - [Відомі обмеження](#відомі-обмеження)
 - [Спільний стартер сповіщень і профілі dev/prod](#спільний-стартер-сповіщень-і-профілі-devprod)
 - [Облікові записи та паролі](#облікові-записи-та-паролі)
+- [Розгортання: Docker Compose](#розгортання-docker-compose)
 
 Схема бази даних і правила роботи з БД — окремий документ: [`README-db.md`](README-db.md).
 
@@ -752,6 +753,7 @@ push-провайдер тощо), для неї слід додати `wiremock
 |---|---|---|
 | Канал сповіщень | `log`, з `details` | `webhook`, URL з `ORCHESTRATE_NOTIFICATION_WEBHOOK_URL` |
 | `source` | `orchestrate-dev` | `orchestrate-prod` |
+| База даних | H2 in-memory (з бази) | PostgreSQL з `ORCHESTRATE_DB_URL` / `_USERNAME` / `_PASSWORD` |
 | SQL у логах | так (з бази) | ні |
 | H2-консоль, Swagger UI | так (з бази) | вимкнено |
 | JWT-секрет | дефолтний (dev-only) | обов'язковий з `ORCHESTRATE_JWT_SECRET` |
@@ -760,7 +762,13 @@ push-провайдер тощо), для неї слід додати `wiremock
 ./gradlew bootRun --args='--spring.profiles.active=dev'
 ```
 
+Профіль `prod` потребує запущеного PostgreSQL; найпростіше підняти його разом із застосунком
+через [Docker Compose](#розгортання-docker-compose). Локальний запуск без Docker:
+
 ```bash
+ORCHESTRATE_DB_URL=jdbc:postgresql://localhost:5432/orchestrate \
+ORCHESTRATE_DB_USERNAME=orchestrate \
+ORCHESTRATE_DB_PASSWORD=change-me \
 ORCHESTRATE_NOTIFICATION_WEBHOOK_URL=https://hooks.example.com/orchestrate \
 ORCHESTRATE_JWT_SECRET="$(openssl rand -base64 48)" \
 ./gradlew bootRun --args='--spring.profiles.active=prod'
@@ -908,3 +916,68 @@ npx newman run security.collection.json -e env.json
 Для `@WebMvcTest` конфігурацію безпеки підключає `SecurityWebMvcTestConfiguration`, а анотація
 `@WithUserPrincipal` кладе в контекст справжній `UserPrincipal` (його очікують `@AuthenticationPrincipal`
 і `householdAccess`).
+
+---
+
+## Розгортання: Docker Compose
+
+Застосунок розгортається в ізольованому Docker-середовищі разом із PostgreSQL. Конфігурація —
+[`Dockerfile`](Dockerfile), [`docker-compose.yml`](docker-compose.yml), [`.env.example`](.env.example).
+
+### Архітектура
+
+| Компонент | Рішення |
+|---|---|
+| Образ | Multi-stage: `eclipse-temurin:25-jdk` збирає Fat JAR (`./gradlew bootJar`), `eclipse-temurin:25-jre` лише запускає його |
+| Користувач | Системний `orchestrate` без shell і домашньої теки — процес не працює від `root` |
+| Сервіси | `app` (профіль `prod`) і `postgres:17-alpine`; дані БД — у томі `postgres-data` |
+| Автозапуск | `restart: unless-stopped`; `app` стартує лише після healthcheck `postgres` (`pg_isready`) |
+| Healthcheck `app` | `curl` на `GET /login` (публічна сторінка) |
+| Мережа | Порт `8080` лише в мережі compose (`expose`), назовні не публікується |
+| Конфігурація | Тільки змінні оточення з `.env`; без обов'язкової змінної `docker compose` не стартує |
+| Міграції | Flyway `V1`–`V3` застосовуються до PostgreSQL під час старту |
+
+### Змінні оточення
+
+| Змінна | Призначення |
+|---|---|
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | База, користувач і пароль PostgreSQL; з них compose формує `ORCHESTRATE_DB_*` для застосунку |
+| `ORCHESTRATE_JWT_SECRET` | Секрет підпису JWT, ≥32 байти (`openssl rand -base64 48`) |
+| `ORCHESTRATE_NOTIFICATION_WEBHOOK_URL` | Webhook сповіщень, обов'язковий у `prod` |
+| `ORCHESTRATE_SECURITY_CORS_ALLOWED_ORIGINS` | Дозволені CORS-джерела через кому |
+
+`.env` містить реальні секрети й ігнорується git; у репозиторії лише шаблон `.env.example`.
+
+### Graceful shutdown
+
+```properties
+server.shutdown=graceful
+spring.lifecycle.timeout-per-shutdown-phase=30s
+```
+
+Після `SIGTERM` Tomcat перестає приймати нові з'єднання, активні запити дообробляються до 30 с, далі
+зупиняються біни та пул з'єднань БД. `ENTRYPOINT` в exec-формі, тож сигнал отримує саме JVM.
+`stop_grace_period: 40s` у compose більший за 30 с, щоб Docker не вбив процес раніше (`SIGKILL`).
+
+### Запуск і перевірка
+
+```bash
+cp .env.example .env          # заповнити реальні значення
+docker compose up -d --build
+docker compose ps             # обидва сервіси healthy
+```
+
+Застосовані міграції:
+
+```bash
+docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select version, success from flyway_schema_history"'
+```
+
+Перевірка graceful shutdown: під час довгого запиту виконати `docker compose stop app` — запит
+завершується успішно, контейнер виходить із кодом `143` (`128 + SIGTERM`).
+
+У профілі `prod` логи пишуться у файл, а не в консоль:
+
+```bash
+docker compose exec app tail -n 50 logs/app.log
+```
