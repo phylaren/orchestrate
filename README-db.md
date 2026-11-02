@@ -20,6 +20,7 @@
 | DDL | `src/main/resources/db/migration/V1__init_schema.sql`, далі `V2__user_credentials.sql` (облікові дані користувачів) |
 | Міграції | Flyway (`spring.flyway.enabled=true`), каталог `classpath:db/migration` |
 | База | H2 in-memory: `jdbc:h2:mem:orchestrate;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1` |
+| База в профілі `prod` | PostgreSQL 17: `spring.datasource.*` з `ORCHESTRATE_DB_URL`, `ORCHESTRATE_DB_USERNAME`, `ORCHESTRATE_DB_PASSWORD` (див. [розгортання в Docker](README.md#розгортання-docker-compose)) |
 | Схема проти коду | `spring.jpa.hibernate.ddl-auto=validate` — Hibernate лише перевіряє відповідність, нічого не створює |
 | Консоль | `spring.h2.console.enabled=true`, шлях `/h2-console` |
 | SQL у журналі | `spring.jpa.show-sql=true`, `format_sql=true` |
