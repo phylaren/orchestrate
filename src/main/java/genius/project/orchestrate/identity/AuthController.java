@@ -2,6 +2,7 @@ package genius.project.orchestrate.identity;
 
 import genius.project.orchestrate.identity.dto.AuthResponse;
 import genius.project.orchestrate.identity.dto.LoginRequest;
+import genius.project.orchestrate.user.UserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -14,11 +15,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Tag(name = "Authentication", description = "Issues JWT access tokens")
 @RestController
@@ -27,10 +32,14 @@ public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final List<TokenClaimsContributor> claimsContributors;
 
-    public AuthController(AuthenticationManager authenticationManager, JwtService jwtService) {
+    public AuthController(AuthenticationManager authenticationManager,
+                          JwtService jwtService,
+                          List<TokenClaimsContributor> claimsContributors) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
+        this.claimsContributors = claimsContributors;
     }
 
     @Operation(summary = "Authenticate and obtain an access token")
@@ -47,8 +56,18 @@ public class AuthController {
         Authentication authentication = authenticationManager.authenticate(
                 UsernamePasswordAuthenticationToken.unauthenticated(
                         request.username(), request.password()));
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        String token = jwtService.generateToken(userDetails);
+
+        if (!(authentication.getPrincipal() instanceof UserPrincipal principal)) {
+            throw new IllegalStateException("Principal must be UserPrincipal");
+        }
+
+        Map<String, Object> extraClaims = new HashMap<>();
+        UUID userId = principal.getId();
+        for (TokenClaimsContributor contributor : claimsContributors) {
+            extraClaims.putAll(contributor.claimsFor(userId));
+        }
+
+        String token = jwtService.generateToken(principal, extraClaims);
         long expiresInSeconds = jwtService.getExpirationMillis() / 1000;
         return ResponseEntity.ok(AuthResponse.of(token, expiresInSeconds));
     }
