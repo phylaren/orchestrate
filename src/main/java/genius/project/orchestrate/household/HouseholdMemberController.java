@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -65,11 +66,12 @@ public class HouseholdMemberController {
                     + "Видалення іншого учасника потребує права MANAGE_MEMBERS.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Учасника видалено / користувач залишив домогосподарство"),
-            @ApiResponse(responseCode = "403", description = "Недостатньо прав (MISSING_PERMISSION / NOT_HOUSEHOLD_MEMBER)"),
+            @ApiResponse(responseCode = "403", description = "Недостатньо прав (ACCESS_DENIED)"),
             @ApiResponse(responseCode = "404", description = "Домогосподарство або учасника не знайдено"),
             @ApiResponse(responseCode = "409", description = "Власника не можна видалити "
                     + "(CANNOT_REMOVE_OWNER / OWNER_MUST_TRANSFER_OWNERSHIP)")
     })
+    @PreAuthorize("#userId == authentication.principal.id or @householdAccess.hasPermission(authentication, #householdId, 'MANAGE_MEMBERS')")
     @DeleteMapping("/{userId}")
     public ResponseEntity<Void> remove(@Parameter(description = "Ідентифікатор домогосподарства", example = "9b2f6c3e-1a4d-4e5b-8f7a-0c1d2e3f4a5b")
                                        @PathVariable UUID householdId,
@@ -84,11 +86,12 @@ public class HouseholdMemberController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Права оновлено"),
             @ApiResponse(responseCode = "400", description = "Некоректні вхідні дані (VALIDATION_FAILED)"),
-            @ApiResponse(responseCode = "403", description = "Недостатньо прав (MISSING_PERMISSION / NOT_HOUSEHOLD_MEMBER)"),
+            @ApiResponse(responseCode = "403", description = "Недостатньо прав (ACCESS_DENIED)"),
             @ApiResponse(responseCode = "404", description = "Домогосподарство або учасника не знайдено"),
             @ApiResponse(responseCode = "409", description = "Заборонена зміна прав "
                     + "(OWNER_PERMISSIONS_IMMUTABLE / SELF_PERMISSION_CHANGE_NOT_ALLOWED)")
     })
+    @PreAuthorize("@householdAccess.hasPermission(authentication, #householdId, 'MANAGE_MEMBERS')")
     @PutMapping("/{userId}/permissions")
     public MembershipResponse updatePermissions(@Parameter(description = "Ідентифікатор домогосподарства", example = "9b2f6c3e-1a4d-4e5b-8f7a-0c1d2e3f4a5b")
                                                 @PathVariable UUID householdId,

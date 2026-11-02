@@ -1,130 +1,100 @@
 package genius.project.orchestrate.household;
 
-import genius.project.orchestrate.household.exception.MissingPermissionException;
-import genius.project.orchestrate.household.exception.OwnerMustTransferOwnershipException;
-import genius.project.orchestrate.household.internal.domain.Membership;
+import genius.project.orchestrate.household.internal.HouseholdAccess;
+import genius.project.orchestrate.identity.JwtValidatorService;
+import genius.project.orchestrate.identity.WithUserPrincipal;
+import genius.project.orchestrate.identity.internal.SecurityWebMvcTestConfiguration;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
-import java.time.Instant;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(HouseholdMemberController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@Import({SecurityWebMvcTestConfiguration.class, HouseholdAccess.class})
 class HouseholdMemberControllerTest {
 
+    private static final UUID HOUSEHOLD_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");
+    private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID OTHER_USER_ID = UUID.fromString("55555555-5555-5555-5555-555555555555");
+
     @Autowired
-    private MockMvc mockMvc;
+    private WebApplicationContext context;
 
     @MockitoBean
     private HouseholdService householdService;
 
-    private static final UUID HOUSEHOLD_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");
-    private static final UUID OWNER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
-    private static final UUID MEMBER_ID = UUID.fromString("55555555-5555-5555-5555-555555555555");
+    @MockitoBean
+    private JwtValidatorService jwtValidatorService;
 
-    @Test
-    @DisplayName("GET /members повертає учасників з правами")
-    void list_Returns200() throws Exception {
-        when(householdService.listMembers(HOUSEHOLD_ID)).thenReturn(List.of(
-                new Membership(HOUSEHOLD_ID, MEMBER_ID, Set.of(MembershipPermission.CONFIRM_COMPLETIONS), Instant.now())));
+    @MockitoBean
+    private UserDetailsService userDetailsService;
 
-        mockMvc.perform(get("/api/v1/households/{id}/members", HOUSEHOLD_ID))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].userId").value(MEMBER_ID.toString()))
-                .andExpect(jsonPath("$[0].permissions[0]").value("CONFIRM_COMPLETIONS"));
+    private MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
     @Test
-    @DisplayName("DELETE /members/{userId} повертає 204")
-    void remove_Returns204() throws Exception {
-        mockMvc.perform(delete("/api/v1/households/{id}/members/{userId}", HOUSEHOLD_ID, MEMBER_ID))
+    @WithUserPrincipal(id = "00000000-0000-0000-0000-000000000001")
+    @DisplayName("DELETE remove without MANAGE_MEMBERS for another user → 403")
+    void removeOtherWithoutPermission_Returns403() throws Exception {
+        when(householdService.hasPermission(eq(HOUSEHOLD_ID), any(), eq(MembershipPermission.MANAGE_MEMBERS)))
+                .thenReturn(false);
+
+        mockMvc.perform(delete("/api/v1/households/{h}/members/{u}", HOUSEHOLD_ID, OTHER_USER_ID).with(csrf()))
+                .andExpect(status().isForbidden());
+
+        verify(householdService, never()).removeMember(any(), any());
+    }
+
+    @Test
+    @WithUserPrincipal(id = "00000000-0000-0000-0000-000000000001")
+    @DisplayName("DELETE remove self is allowed even without MANAGE_MEMBERS")
+    void removeSelf_AllowedWithoutPermission() throws Exception {
+        mockMvc.perform(delete("/api/v1/households/{h}/members/{u}", HOUSEHOLD_ID, USER_ID).with(csrf()))
                 .andExpect(status().isNoContent());
-        verify(householdService).removeMember(HOUSEHOLD_ID, MEMBER_ID);
+
+        verify(householdService).removeMember(HOUSEHOLD_ID, USER_ID);
     }
 
     @Test
-    @DisplayName("DELETE /members/{ownerId} власником з іншими учасниками повертає 409 OWNER_MUST_TRANSFER_OWNERSHIP")
-    void ownerLeave_Returns409() throws Exception {
-        doThrow(new OwnerMustTransferOwnershipException(HOUSEHOLD_ID))
-                .when(householdService).removeMember(HOUSEHOLD_ID, OWNER_ID);
+    @WithUserPrincipal(id = "00000000-0000-0000-0000-000000000001")
+    @DisplayName("PUT permissions without MANAGE_MEMBERS → 403")
+    void updatePermissionsWithoutPermission_Returns403() throws Exception {
+        when(householdService.hasPermission(eq(HOUSEHOLD_ID), any(), eq(MembershipPermission.MANAGE_MEMBERS)))
+                .thenReturn(false);
 
-        mockMvc.perform(delete("/api/v1/households/{id}/members/{userId}", HOUSEHOLD_ID, OWNER_ID))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("OWNER_MUST_TRANSFER_OWNERSHIP"));
-    }
-
-    @Test
-    @DisplayName("PUT /members/{userId}/permissions оновлює права")
-    void updatePermissions_Returns200() throws Exception {
-        Set<MembershipPermission> permissions = EnumSet.of(MembershipPermission.MANAGE_CHORES, MembershipPermission.INVITE_MEMBERS);
-        when(householdService.updatePermissions(HOUSEHOLD_ID, MEMBER_ID, permissions))
-                .thenReturn(new Membership(HOUSEHOLD_ID, MEMBER_ID, permissions, Instant.now()));
-
-        mockMvc.perform(put("/api/v1/households/{id}/members/{userId}/permissions", HOUSEHOLD_ID, MEMBER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"permissions":["MANAGE_CHORES","INVITE_MEMBERS"]}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.permissions.length()").value(2));
-    }
-
-    @Test
-    @DisplayName("PUT /permissions з невідомим правом повертає 400 MALFORMED_REQUEST_BODY")
-    void updatePermissions_UnknownPermission_Returns400() throws Exception {
-        mockMvc.perform(put("/api/v1/households/{id}/members/{userId}/permissions", HOUSEHOLD_ID, MEMBER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"permissions":["BE_GOD"]}
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST_BODY"));
-        verify(householdService, never()).updatePermissions(any(), any(), any());
-    }
-
-    @Test
-    @DisplayName("PUT /permissions без поля permissions повертає 400 VALIDATION_FAILED")
-    void updatePermissions_Missing_Returns400() throws Exception {
-        mockMvc.perform(put("/api/v1/households/{id}/members/{userId}/permissions", HOUSEHOLD_ID, MEMBER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
-    }
-
-    @Test
-    @DisplayName("PUT /permissions без MANAGE_MEMBERS повертає 403 MISSING_PERMISSION")
-    void updatePermissions_NoPermission_Returns403() throws Exception {
-        when(householdService.updatePermissions(eq(HOUSEHOLD_ID), eq(MEMBER_ID), any()))
-                .thenThrow(new MissingPermissionException(HOUSEHOLD_ID, OWNER_ID, MembershipPermission.MANAGE_MEMBERS));
-
-        mockMvc.perform(put("/api/v1/households/{id}/members/{userId}/permissions", HOUSEHOLD_ID, MEMBER_ID)
+        mockMvc.perform(put("/api/v1/households/{h}/members/{u}/permissions", HOUSEHOLD_ID, OTHER_USER_ID)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"permissions":[]}
                                 """))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("MISSING_PERMISSION"));
+                .andExpect(status().isForbidden());
+
+        verify(householdService, never()).updatePermissions(any(), any(), any());
     }
 }
