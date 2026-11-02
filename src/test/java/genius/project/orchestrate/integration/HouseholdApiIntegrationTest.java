@@ -128,6 +128,7 @@ class HouseholdApiIntegrationTest extends IntegrationTestBase {
     @DisplayName("код запрошення → приєднання: рядки в invitation_codes і memberships")
     void invitationCodeAndJoin_ShouldWriteRows() throws Exception {
         UUID household = db.household(owner);
+        ownerToken = login("owner@example.com");
 
         String body = call(post("/api/v1/households/{id}/invitation-code", household), ownerToken)
                 .andExpect(status().isCreated())
@@ -165,6 +166,7 @@ class HouseholdApiIntegrationTest extends IntegrationTestBase {
     void updatePermissions_ShouldReplaceRows() throws Exception {
         UUID household = db.household(owner);
         db.member(household, resident, MembershipPermission.CONFIRM_COMPLETIONS);
+        ownerToken = login("owner@example.com");
 
         call(put("/api/v1/households/{h}/members/{u}/permissions", household, resident), ownerToken, """
                 {"permissions":["MANAGE_CHORES","INVITE_MEMBERS"]}
@@ -181,6 +183,7 @@ class HouseholdApiIntegrationTest extends IntegrationTestBase {
     void updatePermissions_UnknownPermission_ShouldReturn400AndKeepRows() throws Exception {
         UUID household = db.household(owner);
         db.member(household, resident, MembershipPermission.CONFIRM_COMPLETIONS);
+        ownerToken = login("owner@example.com");
 
         call(put("/api/v1/households/{h}/members/{u}/permissions", household, resident), ownerToken, """
                 {"permissions":["BE_GOD"]}
@@ -196,6 +199,7 @@ class HouseholdApiIntegrationTest extends IntegrationTestBase {
     void removeMember_ShouldDeleteMembershipRow() throws Exception {
         UUID household = db.household(owner);
         db.member(household, resident, MembershipPermission.CONFIRM_COMPLETIONS);
+        ownerToken = login("owner@example.com");
 
         call(delete("/api/v1/households/{h}/members/{u}", household, resident), ownerToken)
                 .andExpect(status().isNoContent());

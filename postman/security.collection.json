@@ -11,7 +11,6 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "// Виконується після КОЖНОГО запиту колекції, зокрема для 401 і 403 від фільтрів безпеки",
           "pm.test(\"Відповідь містить заголовок X-Trace-Id\", function () {",
           "    pm.response.to.have.header(\"X-Trace-Id\");",
           "});"
@@ -24,14 +23,13 @@
       "name": "0. Підготовка: користувачі",
       "item": [
         {
-          "name": "0.1 Зареєструвати власника (публічний ендпоінт)",
+          "name": "0.1 Зареєструвати власника",
           "event": [
             {
               "listen": "prerequest",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Унікальний суфікс запуску, щоб email не конфліктував між прогонами",
                   "pm.collectionVariables.set(\"runId\", String(Date.now()));"
                 ]
               }
@@ -52,41 +50,23 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "X-Trace-Id",
-                "value": "newman-security-{{runId}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
+              { "key": "X-Trace-Id", "value": "newman-security-{{runId}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/users",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "users"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users"]
             },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"displayName\": \"Owner\",\n  \"email\": \"owner.{{runId}}@orchestrate.test\",\n  \"password\": \"correct-horse-battery\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": { "raw": { "language": "json" } }
             }
           }
         },
         {
-          "name": "0.2 Зареєструвати мешканця (публічний ендпоінт)",
+          "name": "0.2 Зареєструвати мешканця",
           "event": [
             {
               "listen": "test",
@@ -103,36 +83,18 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "X-Trace-Id",
-                "value": "newman-security-{{runId}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
+              { "key": "X-Trace-Id", "value": "newman-security-{{runId}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/users",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "users"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users"]
             },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"displayName\": \"Resident\",\n  \"email\": \"resident.{{runId}}@orchestrate.test\",\n  \"password\": \"correct-horse-battery\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": { "raw": { "language": "json" } }
             }
           }
         }
@@ -168,23 +130,12 @@
           "request": {
             "method": "GET",
             "header": [
-              {
-                "key": "X-Trace-Id",
-                "value": "newman-security-{{runId}}",
-                "type": "text"
-              }
+              { "key": "X-Trace-Id", "value": "newman-security-{{runId}}", "type": "text" }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/users/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "users",
-                "me"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me"]
             }
           }
         },
@@ -221,28 +172,13 @@
           "request": {
             "method": "GET",
             "header": [
-              {
-                "key": "X-Trace-Id",
-                "value": "newman-security-{{runId}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{invalidToken}}",
-                "type": "text"
-              }
+              { "key": "X-Trace-Id", "value": "newman-security-{{runId}}", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{invalidToken}}", "type": "text" }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/users/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "users",
-                "me"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me"]
             }
           }
         }
@@ -268,6 +204,11 @@
                   "    pm.expect(json.accessToken.split(\".\")).to.have.lengthOf(3);",
                   "    pm.expect(json.expiresIn).to.be.above(0);",
                   "    pm.collectionVariables.set(\"ownerToken\", json.accessToken);",
+                  "    const payload = JSON.parse(atob(json.accessToken.split(\".\")[1]));",
+                  "    pm.test(\"Payload містить claim households\", function () {",
+                  "        pm.expect(payload).to.have.property(\"households\");",
+                  "        pm.expect(payload.households).to.be.an(\"object\");",
+                  "    });",
                   "});"
                 ]
               }
@@ -276,37 +217,18 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "X-Trace-Id",
-                "value": "newman-security-{{runId}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
+              { "key": "X-Trace-Id", "value": "newman-security-{{runId}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "auth",
-                "login"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
             },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"owner.{{runId}}@orchestrate.test\",\n  \"password\": \"correct-horse-battery\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": { "raw": { "language": "json" } }
             }
           }
         },
@@ -327,6 +249,11 @@
                   "    pm.expect(json.accessToken.split(\".\")).to.have.lengthOf(3);",
                   "    pm.expect(json.expiresIn).to.be.above(0);",
                   "    pm.collectionVariables.set(\"residentToken\", json.accessToken);",
+                  "    const payload = JSON.parse(atob(json.accessToken.split(\".\")[1]));",
+                  "    pm.test(\"Payload містить claim households\", function () {",
+                  "        pm.expect(payload).to.have.property(\"households\");",
+                  "        pm.expect(payload.households).to.be.an(\"object\");",
+                  "    });",
                   "});"
                 ]
               }
@@ -335,37 +262,18 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "X-Trace-Id",
-                "value": "newman-security-{{runId}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
+              { "key": "X-Trace-Id", "value": "newman-security-{{runId}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "auth",
-                "login"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
             },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"resident.{{runId}}@orchestrate.test\",\n  \"password\": \"correct-horse-battery\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": { "raw": { "language": "json" } }
             }
           }
         }
@@ -400,28 +308,13 @@
           "request": {
             "method": "GET",
             "header": [
-              {
-                "key": "X-Trace-Id",
-                "value": "newman-security-{{runId}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ownerToken}}",
-                "type": "text"
-              }
+              { "key": "X-Trace-Id", "value": "newman-security-{{runId}}", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}", "type": "text" }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/users/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "users",
-                "me"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me"]
             }
           }
         },
@@ -444,56 +337,34 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "X-Trace-Id",
-                "value": "newman-security-{{runId}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ownerToken}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
+              { "key": "X-Trace-Id", "value": "newman-security-{{runId}}", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/households",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "households"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "households"]
             },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Квартира\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": { "raw": { "language": "json" } }
             }
           }
         },
         {
-          "name": "3b. Власник створює код запрошення",
+          "name": "3b. Оновити токен власника (re-login)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Код запрошення створено\", function () {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-                  "    pm.collectionVariables.set(\"invitationCode\", pm.response.json().code);",
-                  "});"
+                  "pm.test(\"Статус відповіді 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.collectionVariables.set(\"ownerToken\", pm.response.json().accessToken);"
                 ]
               }
             }
@@ -501,34 +372,51 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "X-Trace-Id",
-                "value": "newman-security-{{runId}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ownerToken}}",
-                "type": "text"
-              }
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/households/{{householdId}}/invitation-code",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "households",
-                "{{householdId}}",
-                "invitation-code"
-              ]
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"owner.{{runId}}@orchestrate.test\",\n  \"password\": \"correct-horse-battery\"\n}",
+              "options": { "raw": { "language": "json" } }
             }
           }
         },
         {
-          "name": "3c. Мешканець приєднується за кодом",
+          "name": "3c. Власник створює код запрошення",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set(\"invitationCode\", pm.response.json().code);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Trace-Id", "value": "newman-security-{{runId}}", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/households/{{householdId}}/invitation-code",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "households", "{{householdId}}", "invitation-code"]
+            }
+          }
+        },
+        {
+          "name": "3d. Мешканець приєднується за кодом",
           "event": [
             {
               "listen": "test",
@@ -545,47 +433,57 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "X-Trace-Id",
-                "value": "newman-security-{{runId}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{residentToken}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
+              { "key": "X-Trace-Id", "value": "newman-security-{{runId}}", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{residentToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/households/join",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "households",
-                "join"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "households", "join"]
             },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"code\": \"{{invitationCode}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": { "raw": { "language": "json" } }
             }
           }
         },
         {
-          "name": "3d. Власник (MANAGE_MEMBERS) читає зведення прав → 200",
+          "name": "3e. Оновити токен мешканця (re-login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Статус відповіді 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.collectionVariables.set(\"residentToken\", pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"resident.{{runId}}@orchestrate.test\",\n  \"password\": \"correct-horse-battery\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "3f. Власник (MANAGE_MEMBERS) читає зведення прав → 200",
           "event": [
             {
               "listen": "test",
@@ -607,30 +505,13 @@
           "request": {
             "method": "GET",
             "header": [
-              {
-                "key": "X-Trace-Id",
-                "value": "newman-security-{{runId}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ownerToken}}",
-                "type": "text"
-              }
+              { "key": "X-Trace-Id", "value": "newman-security-{{runId}}", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}", "type": "text" }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/households/{{householdId}}/members/permissions",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "households",
-                "{{householdId}}",
-                "members",
-                "permissions"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "households", "{{householdId}}", "members", "permissions"]
             }
           }
         }
@@ -640,7 +521,7 @@
       "name": "4. Без прав → 403",
       "item": [
         {
-          "name": "4. Користувач без прав → 403",
+          "name": "4. Мешканець без MANAGE_MEMBERS → 403",
           "event": [
             {
               "listen": "test",
@@ -663,30 +544,13 @@
           "request": {
             "method": "GET",
             "header": [
-              {
-                "key": "X-Trace-Id",
-                "value": "newman-security-{{runId}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{residentToken}}",
-                "type": "text"
-              }
+              { "key": "X-Trace-Id", "value": "newman-security-{{runId}}", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{residentToken}}", "type": "text" }
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/households/{{householdId}}/members/permissions",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "households",
-                "{{householdId}}",
-                "members",
-                "permissions"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "households", "{{householdId}}", "members", "permissions"]
             }
           }
         }
@@ -694,33 +558,12 @@
     }
   ],
   "variable": [
-    {
-      "key": "runId",
-      "value": ""
-    },
-    {
-      "key": "ownerId",
-      "value": ""
-    },
-    {
-      "key": "ownerToken",
-      "value": ""
-    },
-    {
-      "key": "residentToken",
-      "value": ""
-    },
-    {
-      "key": "invalidToken",
-      "value": ""
-    },
-    {
-      "key": "householdId",
-      "value": ""
-    },
-    {
-      "key": "invitationCode",
-      "value": ""
-    }
+    { "key": "runId", "value": "" },
+    { "key": "ownerId", "value": "" },
+    { "key": "ownerToken", "value": "" },
+    { "key": "residentToken", "value": "" },
+    { "key": "invalidToken", "value": "" },
+    { "key": "householdId", "value": "" },
+    { "key": "invitationCode", "value": "" }
   ]
 }

@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -43,13 +44,14 @@ public class HouseholdInvitationController {
             @ApiResponse(responseCode = "201", description = "Код створено",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = InvitationCodeResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Недостатньо прав (MISSING_PERMISSION / NOT_HOUSEHOLD_MEMBER)"),
+            @ApiResponse(responseCode = "403", description = "Недостатньо прав (ACCESS_DENIED)"),
             @ApiResponse(responseCode = "404", description = "Домогосподарство не знайдено (HOUSEHOLD_NOT_FOUND)")
     })
+    @PreAuthorize("@householdAccess.hasPermission(authentication, #householdId, 'INVITE_MEMBERS')")
     @PostMapping("/{householdId}/invitation-code")
     public ResponseEntity<InvitationCodeResponse> createInvitationCode(@Parameter(description = "Ідентифікатор домогосподарства", example = "9b2f6c3e-1a4d-4e5b-8f7a-0c1d2e3f4a5b")
-                                                                         @PathVariable UUID householdId,
-                                                                         UriComponentsBuilder uriBuilder) {
+                                                                       @PathVariable UUID householdId,
+                                                                       UriComponentsBuilder uriBuilder) {
         InvitationCode code = householdService.createInvitationCode(householdId);
         URI location = uriBuilder.path("/api/v1/households/{householdId}/invitation-code")
                 .buildAndExpand(householdId)
@@ -60,9 +62,10 @@ public class HouseholdInvitationController {
     @Operation(summary = "Отримати чинний код запрошення", description = "Потрібне право INVITE_MEMBERS.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Чинний код запрошення"),
-            @ApiResponse(responseCode = "403", description = "Недостатньо прав (MISSING_PERMISSION / NOT_HOUSEHOLD_MEMBER)"),
+            @ApiResponse(responseCode = "403", description = "Недостатньо прав (ACCESS_DENIED)"),
             @ApiResponse(responseCode = "404", description = "Домогосподарство або чинний код не знайдено")
     })
+    @PreAuthorize("@householdAccess.hasPermission(authentication, #householdId, 'INVITE_MEMBERS')")
     @GetMapping("/{householdId}/invitation-code")
     public InvitationCodeResponse getInvitationCode(@Parameter(description = "Ідентифікатор домогосподарства", example = "9b2f6c3e-1a4d-4e5b-8f7a-0c1d2e3f4a5b")
                                                     @PathVariable UUID householdId) {
@@ -72,9 +75,10 @@ public class HouseholdInvitationController {
     @Operation(summary = "Відкликати код запрошення", description = "Потрібне право INVITE_MEMBERS.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Код відкликано"),
-            @ApiResponse(responseCode = "403", description = "Недостатньо прав (MISSING_PERMISSION / NOT_HOUSEHOLD_MEMBER)"),
+            @ApiResponse(responseCode = "403", description = "Недостатньо прав (ACCESS_DENIED)"),
             @ApiResponse(responseCode = "404", description = "Домогосподарство або код не знайдено")
     })
+    @PreAuthorize("@householdAccess.hasPermission(authentication, #householdId, 'INVITE_MEMBERS')")
     @DeleteMapping("/{householdId}/invitation-code")
     public ResponseEntity<Void> revokeInvitationCode(@Parameter(description = "Ідентифікатор домогосподарства", example = "9b2f6c3e-1a4d-4e5b-8f7a-0c1d2e3f4a5b")
                                                      @PathVariable UUID householdId) {
@@ -95,7 +99,7 @@ public class HouseholdInvitationController {
     })
     @PostMapping("/join")
     public ResponseEntity<MembershipResponse> join(@Valid @RequestBody JoinHouseholdRequest request,
-                                                     UriComponentsBuilder uriBuilder) {
+                                                   UriComponentsBuilder uriBuilder) {
         Membership membership = householdService.joinByInvitationCode(request.code());
         URI location = uriBuilder.path("/api/v1/households/{householdId}/members/{userId}")
                 .buildAndExpand(membership.householdId(), membership.userId())

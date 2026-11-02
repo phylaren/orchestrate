@@ -22,6 +22,7 @@ class ChoreCompletionApiIntegrationTest extends IntegrationTestBase {
 
     private UUID alice;
     private UUID bob;
+    private UUID household;
     private UUID chore;
     private String aliceToken;
     private String bobToken;
@@ -30,7 +31,7 @@ class ChoreCompletionApiIntegrationTest extends IntegrationTestBase {
     void setUp() throws Exception {
         alice = db.user("alice@example.com");
         bob = db.user("bob@example.com");
-        UUID household = db.household(alice);
+        household = db.household(alice);
         db.member(household, bob, MembershipPermission.CONFIRM_COMPLETIONS);
         chore = db.chore(household, "Сміття", true);
         aliceToken = login("alice@example.com");
@@ -38,8 +39,8 @@ class ChoreCompletionApiIntegrationTest extends IntegrationTestBase {
     }
 
     private void bothJoin() throws Exception {
-        call(post("/api/v1/chores/{id}/participants", chore), aliceToken).andExpect(status().isCreated());
-        call(post("/api/v1/chores/{id}/participants", chore), bobToken).andExpect(status().isCreated());
+        call(post("/api/v1/households/{h}/chores/{c}/participants", household, chore), aliceToken).andExpect(status().isCreated());
+        call(post("/api/v1/households/{h}/chores/{c}/participants", household, chore), bobToken).andExpect(status().isCreated());
     }
 
     private String aliceCompletes() throws Exception {
@@ -54,7 +55,7 @@ class ChoreCompletionApiIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("POST /participants: рядки в chore_participants, rotation_schedules і rotation_order")
     void join_ShouldInsertParticipantAndRotation() throws Exception {
-        call(post("/api/v1/chores/{id}/participants", chore), aliceToken)
+        call(post("/api/v1/households/{h}/chores/{c}/participants", household, chore), aliceToken)
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.addedByAdmin").value(false));
 
@@ -68,9 +69,9 @@ class ChoreCompletionApiIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("повторне приєднання → 409, кількість рядків не змінилась")
     void join_Twice_ShouldReturn409AndKeepRowCount() throws Exception {
-        call(post("/api/v1/chores/{id}/participants", chore), aliceToken).andExpect(status().isCreated());
+        call(post("/api/v1/households/{h}/chores/{c}/participants", household, chore), aliceToken).andExpect(status().isCreated());
 
-        call(post("/api/v1/chores/{id}/participants", chore), aliceToken)
+        call(post("/api/v1/households/{h}/chores/{c}/participants", household, chore), aliceToken)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ALREADY_PARTICIPANT"));
 
@@ -81,7 +82,7 @@ class ChoreCompletionApiIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("приєднання до неіснуючого обов'язку → 404, рядків немає")
     void join_UnknownChore_ShouldReturn404() throws Exception {
-        call(post("/api/v1/chores/{id}/participants", UUID.randomUUID()), aliceToken)
+        call(post("/api/v1/households/{h}/chores/{c}/participants", household, UUID.randomUUID()), aliceToken)
                 .andExpect(status().isNotFound());
 
         assertThat(db.count("chore_participants")).isZero();
@@ -90,7 +91,7 @@ class ChoreCompletionApiIntegrationTest extends IntegrationTestBase {
     @Test
     @DisplayName("PUT /participants/{userId}: адміністратор додає учасника, added_by_admin = true")
     void adminAdd_ShouldMarkRowAddedByAdmin() throws Exception {
-        call(put("/api/v1/chores/{c}/participants/{u}", chore, bob), aliceToken)
+        call(put("/api/v1/households/{h}/chores/{c}/participants/{u}", household, chore, bob), aliceToken)
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.addedByAdmin").value(true));
 
@@ -102,7 +103,7 @@ class ChoreCompletionApiIntegrationTest extends IntegrationTestBase {
     void leave_ShouldRemoveParticipantAndRotationRow() throws Exception {
         bothJoin();
 
-        call(delete("/api/v1/chores/{c}/participants/{u}", chore, alice), aliceToken)
+        call(delete("/api/v1/households/{h}/chores/{c}/participants/{u}", household, chore, alice), aliceToken)
                 .andExpect(status().isNoContent());
 
         assertThat(db.count("chore_participants", "chore_id = ?", chore)).isEqualTo(1);

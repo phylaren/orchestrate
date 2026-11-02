@@ -1,5 +1,6 @@
 package genius.project.orchestrate.identity;
 
+import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class JwtService {
@@ -27,17 +29,27 @@ public class JwtService {
     }
 
     public String generateToken(UserDetails userDetails) {
+        return generateToken(userDetails, Map.of());
+    }
+
+    public String generateToken(UserDetails userDetails, Map<String, Object> extraClaims) {
         Instant now = Instant.now();
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .toList();
-        return Jwts.builder()
+
+        JwtBuilder builder = Jwts.builder()
                 .subject(userDetails.getUsername())
                 .claim("roles", roles)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusMillis(expirationMillis)))
-                .signWith(signingKey)
-                .compact();
+                .signWith(signingKey);
+
+        if (extraClaims != null && !extraClaims.isEmpty()) {
+            extraClaims.forEach(builder::claim);
+        }
+
+        return builder.compact();
     }
 
     public long getExpirationMillis() {
