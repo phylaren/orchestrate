@@ -99,6 +99,56 @@ class SecurityFlowIntegrationTest {
     }
 
     @Test
+    @DisplayName("Мешканець без INVITE_MEMBERS отримує 403 на invitation-code, власник — 201")
+    void invitationCode_PermissionCheck() throws Exception {
+        String runId = UUID.randomUUID().toString().substring(0, 8);
+        String ownerEmail = "owner.inv." + runId + "@orchestrate.test";
+        String residentEmail = "resident.inv." + runId + "@orchestrate.test";
+        register("Owner", ownerEmail);
+        register("Resident", residentEmail);
+
+        String ownerToken = login(ownerEmail);
+        String residentToken = login(residentEmail);
+
+        String household = mockMvc.perform(post("/api/v1/households")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(ownerToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Квартира"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String householdId = JsonPath.read(household, "$.id");
+
+        ownerToken = login(ownerEmail);
+
+        String invitation = mockMvc.perform(post("/api/v1/households/" + householdId + "/invitation-code")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(ownerToken)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String code = JsonPath.read(invitation, "$.code");
+
+        mockMvc.perform(post("/api/v1/households/join")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(residentToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"code":"%s"}
+                                """.formatted(code)))
+                .andExpect(status().isCreated());
+
+        residentToken = login(residentEmail);
+
+        mockMvc.perform(post("/api/v1/households/" + householdId + "/invitation-code")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(residentToken)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+        mockMvc.perform(post("/api/v1/households/" + householdId + "/invitation-code")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(ownerToken)))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     @DisplayName("Невірний пароль при вході — 401 INVALID_CREDENTIALS")
     void login_WrongPassword_Returns401() throws Exception {
         String email = "wrong." + UUID.randomUUID().toString().substring(0, 8) + "@orchestrate.test";

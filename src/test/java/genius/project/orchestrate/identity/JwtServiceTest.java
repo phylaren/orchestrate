@@ -6,6 +6,7 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -45,6 +46,20 @@ class JwtServiceTest {
         Claims claims = jwtValidatorService.extractAllClaims(token);
         assertThat(claims.get("roles", List.class))
                 .containsExactlyInAnyOrder("ROLE_USER", "ROLE_ADMIN");
+    }
+
+    @Test
+    void generateToken_encodesExtraClaims() {
+        UserDetails user = userDetails("alice@example.com");
+        Map<String, Object> extraClaims = Map.of(
+                "households", Map.of("house-1", List.of("MANAGE_CHORES"))
+        );
+
+        String token = jwtService.generateToken(user, extraClaims);
+
+        Claims claims = jwtValidatorService.extractAllClaims(token);
+        assertThat(claims.get("households", Map.class))
+                .containsEntry("house-1", List.of("MANAGE_CHORES"));
     }
 
     @Test
