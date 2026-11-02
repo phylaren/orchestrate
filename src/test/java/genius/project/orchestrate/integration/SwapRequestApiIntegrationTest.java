@@ -27,6 +27,7 @@ class SwapRequestApiIntegrationTest extends IntegrationTestBase {
     private UUID alice;
     private UUID bob;
     private UUID carol;
+    private UUID household;
     private UUID chore;
     private String aliceToken;
     private String bobToken;
@@ -36,15 +37,15 @@ class SwapRequestApiIntegrationTest extends IntegrationTestBase {
         alice = db.user("alice@example.com");
         bob = db.user("bob@example.com");
         carol = db.user("carol@example.com");
-        UUID household = db.household(alice);
+        household = db.household(alice);
         db.member(household, bob, MembershipPermission.CONFIRM_COMPLETIONS);
         db.member(household, carol, MembershipPermission.CONFIRM_COMPLETIONS);
         chore = db.chore(household, "Сміття", false);
         aliceToken = login("alice@example.com");
         bobToken = login("bob@example.com");
         // Alice і Bob у групі виконання (поточний цикл = 1), Carol не в групі.
-        call(post("/api/v1/chores/{id}/participants", chore), aliceToken).andExpect(status().isCreated());
-        call(post("/api/v1/chores/{id}/participants", chore), bobToken).andExpect(status().isCreated());
+        call(post("/api/v1/households/{h}/chores/{c}/participants", household, chore), aliceToken).andExpect(status().isCreated());
+        call(post("/api/v1/households/{h}/chores/{c}/participants", household, chore), bobToken).andExpect(status().isCreated());
     }
 
     private String createPermanent() throws Exception {
