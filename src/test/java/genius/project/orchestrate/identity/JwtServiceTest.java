@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class JwtServiceTest {
 
     private static final String SECRET = "test-secret-key-minimum-32-bytes-long-for-hs256";
-    private static final long EXPIRATION_MINUTES = 15;
+    private static final long EXPIRATION_MINUTES = 5;
 
     private final JwtService jwtService = new JwtService(SECRET, EXPIRATION_MINUTES);
     private final JwtValidatorService jwtValidatorService = new JwtValidatorService(SECRET);

@@ -637,7 +637,7 @@ push-провайдер тощо), для неї слід додати `wiremock
 | Логін | `POST /api/v1/auth/login` з тілом `{"username": "<email>", "password": "<password>"}` |
 | Відповідь | `{"accessToken": "<JWT>", "tokenType": "Bearer", "expiresIn": <секунди>}` |
 | Захист запитів | Заголовок `Authorization: Bearer <token>` |
-| Час життя токена | `security.jwt.expiration-minutes` (за замовчуванням 15 хв) |
+| Час життя токена | `security.jwt.expiration-minutes` (за замовчуванням 5 хв) |
 | Секрет підпису | `security.jwt.secret` (≥32 байти; у prod обов'язковий через `ORCHESTRATE_JWT_SECRET`) |
 | Фільтр | `identity/internal/JwtAuthenticationFilter` — `OncePerRequestFilter`, **не** `@Component`; інстанціюється в `SecurityFilterChain` через `new JwtAuthenticationFilter(...)` |
 | Провайдер користувача | `identity/internal/SecurityContextCurrentUserProvider` — читає UUID з токена в `SecurityContextHolder` |
