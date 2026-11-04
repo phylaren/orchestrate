@@ -1,0 +1,119 @@
+(node:8040) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead
+(Use `node --trace-deprecation ...` to show where the warning was created)
+newman
+
+Orchestrate — безпека API: 401, вхід, 200, 403
+
+□ 0. Підготовка: користувачі
+└ 0.1 Зареєструвати власника
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/users [201 Created, 826B, 788ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 201 Created
+
+└ 0.2 Зареєструвати мешканця
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/users [201 Created, 832B, 587ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 201 Created
+
+□ 1. Без токена → 401
+└ 1. Запит без токена → 401
+  GET https://chief-algorithm-yanking.ngrok-free.dev/api/v1/users/me [401 Unauthorized, 908B, 102ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 401 Unauthorized
+  √  Тіло — ProblemDetail (RFC 9457) з кодом AUTHENTICATION_REQUIRED
+  √  Заголовок WWW-Authenticate: Bearer
+
+└ 1a. Підроблений токен → 401
+  GET https://chief-algorithm-yanking.ngrok-free.dev/api/v1/users/me [401 Unauthorized, 938B, 89ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 401 Unauthorized
+  √  Тіло — ProblemDetail (RFC 9457) з кодом INVALID_TOKEN
+
+□ 2. Вхід → токен
+└ 2. Вхід власника → токен
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/auth/login [200 OK, 853B, 728ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 200 OK
+  ┌
+  │ `Using "atob" is deprecated. Use "require('atob')" ins
+  │ tead.`
+  └
+  √  Payload містить claim households
+  √  Відповідь містить токен типу Bearer
+
+└ 2a. Вхід мешканця → токен
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/auth/login [200 OK, 857B, 958ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 200 OK
+  ┌
+  │ `Using "atob" is deprecated. Use "require('atob')" ins
+  │ tead.`
+  └
+  √  Payload містить claim households
+  √  Відповідь містить токен типу Bearer
+
+□ 3. З токеном → 200
+└ 3. Запит з токеном → 200
+  GET https://chief-algorithm-yanking.ngrok-free.dev/api/v1/users/me [200 OK, 683B, 201ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 200 OK
+  √  Користувача визначено за токеном
+  √  Сесія не створюється (stateless)
+
+└ 3a. Власник створює дім
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households [201 Created, 837B, 280ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 201 Created
+
+└ 3b. Оновити токен власника (re-login)
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/auth/login [200 OK, 1.01kB, 936ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 200 OK
+
+└ 3c. Власник створює код запрошення
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households/9a87a5ab-3a67-4a68-8f03-819acd4cd4be/invitation-code [201 Created, 907B, 141ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 201 Created
+
+└ 3d. Мешканець приєднується за кодом
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households/join [201 Created, 901B, 334ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 201 Created
+
+└ 3e. Оновити токен мешканця (re-login)
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/auth/login [200 OK, 946B, 1501ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 200 OK
+
+└ 3f. Власник (MANAGE_MEMBERS) читає зведення прав → 200
+  GET https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households/9a87a5ab-3a67-4a68-8f03-819acd4cd4be/members/permissions [200 OK, 1.08kB, 128ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 200 OK
+  √  Зведення містить обох учасників
+
+□ 4. Без прав → 403
+└ 4. Мешканець без MANAGE_MEMBERS → 403
+  GET https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households/9a87a5ab-3a67-4a68-8f03-819acd4cd4be/members/permissions [403 Forbidden, 900B, 94ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Статус відповіді 403 Forbidden
+  √  Тіло — ProblemDetail (RFC 9457) з кодом ACCESS_DENIED
+
+┌─────────────────────────┬─────────────────────┬────────────────────┐
+│                         │            executed │             failed │
+├─────────────────────────┼─────────────────────┼────────────────────┤
+│              iterations │                   1 │                  0 │
+├─────────────────────────┼─────────────────────┼────────────────────┤
+│                requests │                  14 │                  0 │
+├─────────────────────────┼─────────────────────┼────────────────────┤
+│            test-scripts │                  28 │                  0 │
+├─────────────────────────┼─────────────────────┼────────────────────┤
+│      prerequest-scripts │                   2 │                  0 │
+├─────────────────────────┼─────────────────────┼────────────────────┤
+│              assertions │                  39 │                  0 │
+├─────────────────────────┴─────────────────────┴────────────────────┤
+│ total run duration: 7.9s                                           │
+├────────────────────────────────────────────────────────────────────┤
+│ total data received: 3.87kB (approx)                               │
+├────────────────────────────────────────────────────────────────────┤
+│ average response time: 490ms [min: 89ms, max: 1501ms, s.d.: 419ms] │
+└────────────────────────────────────────────────────────────────────┘

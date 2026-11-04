@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Orchestrate — безпека API: 401, вхід, 200, 403" tests="14" time="6.867">
+  <testsuite name="0. Підготовка: користувачі / 0.1 Зареєструвати власника" id="86a4e175-575b-49e3-8c23-6cf922ec1011" timestamp="2026-11-04T20:04:54.580Z" tests="2" failures="0" errors="0" time="0.788">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.788" classname="001"/>
+    <testcase name="Статус відповіді 201 Created" time="0.788" classname="001"/>
+  </testsuite>
+  <testsuite name="0. Підготовка: користувачі / 0.2 Зареєструвати мешканця" id="e02a09a2-9adf-4f6e-8f67-c5c6c0725f8e" timestamp="2026-11-04T20:04:54.580Z" tests="2" failures="0" errors="0" time="0.587">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.587" classname="002"/>
+    <testcase name="Статус відповіді 201 Created" time="0.587" classname="002"/>
+  </testsuite>
+  <testsuite name="1. Без токена → 401 / 1. Запит без токена → 401" id="450973ab-88e0-43c5-8add-54271829e723" timestamp="2026-11-04T20:04:54.580Z" tests="4" failures="0" errors="0" time="0.102">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.102" classname="14011401"/>
+    <testcase name="Статус відповіді 401 Unauthorized" time="0.102" classname="14011401"/>
+    <testcase name="Тіло — ProblemDetail (RFC 9457) з кодом AUTHENTICATION_REQUIRED" time="0.102" classname="14011401"/>
+    <testcase name="Заголовок WWW-Authenticate: Bearer" time="0.102" classname="14011401"/>
+  </testsuite>
+  <testsuite name="1. Без токена → 401 / 1a. Підроблений токен → 401" id="3ba6e712-aae3-41cb-bf78-863ea79d0efa" timestamp="2026-11-04T20:04:54.580Z" tests="3" failures="0" errors="0" time="0.089">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.089" classname="14011A401"/>
+    <testcase name="Статус відповіді 401 Unauthorized" time="0.089" classname="14011A401"/>
+    <testcase name="Тіло — ProblemDetail (RFC 9457) з кодом INVALID_TOKEN" time="0.089" classname="14011A401"/>
+  </testsuite>
+  <testsuite name="2. Вхід → токен / 2. Вхід власника → токен" id="259f5603-3a19-48ed-8c76-41ff592591f0" timestamp="2026-11-04T20:04:54.580Z" tests="4" failures="0" errors="0" time="0.728">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.728" classname="22"/>
+    <testcase name="Статус відповіді 200 OK" time="0.728" classname="22"/>
+    <testcase name="Payload містить claim households" time="0.728" classname="22"/>
+    <testcase name="Відповідь містить токен типу Bearer" time="0.728" classname="22"/>
+  </testsuite>
+  <testsuite name="2. Вхід → токен / 2a. Вхід мешканця → токен" id="6ef69878-6c2c-4dff-9f0d-4e259d6980eb" timestamp="2026-11-04T20:04:54.580Z" tests="4" failures="0" errors="0" time="0.958">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.958" classname="22A"/>
+    <testcase name="Статус відповіді 200 OK" time="0.958" classname="22A"/>
+    <testcase name="Payload містить claim households" time="0.958" classname="22A"/>
+    <testcase name="Відповідь містить токен типу Bearer" time="0.958" classname="22A"/>
+  </testsuite>
+  <testsuite name="3. З токеном → 200 / 3. Запит з токеном → 200" id="49f472f4-b1a5-48ed-ab79-8107718bbd65" timestamp="2026-11-04T20:04:54.580Z" tests="4" failures="0" errors="0" time="0.201">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.201" classname="32003200"/>
+    <testcase name="Статус відповіді 200 OK" time="0.201" classname="32003200"/>
+    <testcase name="Користувача визначено за токеном" time="0.201" classname="32003200"/>
+    <testcase name="Сесія не створюється (stateless)" time="0.201" classname="32003200"/>
+  </testsuite>
+  <testsuite name="3. З токеном → 200 / 3a. Власник створює дім" id="1e8f1060-615c-4516-9e1b-2c8296e842e5" timestamp="2026-11-04T20:04:54.580Z" tests="2" failures="0" errors="0" time="0.280">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.280" classname="32003A"/>
+    <testcase name="Статус відповіді 201 Created" time="0.280" classname="32003A"/>
+  </testsuite>
+  <testsuite name="3. З токеном → 200 / 3b. Оновити токен власника (re-login)" id="7338a2b0-6459-4f54-b310-778c498699eb" timestamp="2026-11-04T20:04:54.580Z" tests="2" failures="0" errors="0" time="0.936">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.936" classname="32003BReLogin"/>
+    <testcase name="Статус відповіді 200 OK" time="0.936" classname="32003BReLogin"/>
+  </testsuite>
+  <testsuite name="3. З токеном → 200 / 3c. Власник створює код запрошення" id="04e47f0b-43e3-405b-a067-43c3abaac75b" timestamp="2026-11-04T20:04:54.580Z" tests="2" failures="0" errors="0" time="0.141">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.141" classname="32003C"/>
+    <testcase name="Статус відповіді 201 Created" time="0.141" classname="32003C"/>
+  </testsuite>
+  <testsuite name="3. З токеном → 200 / 3d. Мешканець приєднується за кодом" id="f423db57-7261-4d95-aa67-ba29e8273f6c" timestamp="2026-11-04T20:04:54.580Z" tests="2" failures="0" errors="0" time="0.334">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.334" classname="32003D"/>
+    <testcase name="Статус відповіді 201 Created" time="0.334" classname="32003D"/>
+  </testsuite>
+  <testsuite name="3. З токеном → 200 / 3e. Оновити токен мешканця (re-login)" id="e91d8778-859d-4afe-a589-55c90679f3ba" timestamp="2026-11-04T20:04:54.580Z" tests="2" failures="0" errors="0" time="1.501">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="1.501" classname="32003EReLogin"/>
+    <testcase name="Статус відповіді 200 OK" time="1.501" classname="32003EReLogin"/>
+  </testsuite>
+  <testsuite name="3. З токеном → 200 / 3f. Власник (MANAGE_MEMBERS) читає зведення прав → 200" id="5fca07bf-8c2b-4d3b-8373-6a0e926ea616" timestamp="2026-11-04T20:04:54.580Z" tests="3" failures="0" errors="0" time="0.128">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.128" classname="32003FManageMembers200"/>
+    <testcase name="Статус відповіді 200 OK" time="0.128" classname="32003FManageMembers200"/>
+    <testcase name="Зведення містить обох учасників" time="0.128" classname="32003FManageMembers200"/>
+  </testsuite>
+  <testsuite name="4. Без прав → 403 / 4. Мешканець без MANAGE_MEMBERS → 403" id="7c487b06-903f-4af4-ba22-319014820cfc" timestamp="2026-11-04T20:04:54.580Z" tests="3" failures="0" errors="0" time="0.094">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.094" classname="44034ManageMembers403"/>
+    <testcase name="Статус відповіді 403 Forbidden" time="0.094" classname="44034ManageMembers403"/>
+    <testcase name="Тіло — ProblemDetail (RFC 9457) з кодом ACCESS_DENIED" time="0.094" classname="44034ManageMembers403"/>
+  </testsuite>
+</testsuites>

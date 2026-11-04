@@ -1,0 +1,24 @@
+
+Крок 1. Запит без токена
+  [OK]   GET /api/v1/users/me без Authorization: 401
+         тіло: {"type":"https://orchestrate.example.com/problems/authentication-required","title":"Authentication required","status":401,"detail":"A valid Bearer access token is required to access this resource.","instance":"/api/v1/users/me","timestamp":"2026-11-04T20:02:47.016566100Z","code":"AUTHENTICATION_REQUIRED"}
+
+Підготовка: користувачі, дім і запрошення (https://chief-algorithm-yanking.ngrok-free.dev)
+  [OK]   Реєстрація власника (публічний ендпоінт): 201
+  [OK]   Реєстрація мешканця (публічний ендпоінт): 201
+
+Крок 2. Вхід і отримання токена
+  [OK]   POST /api/v1/auth/login: токен eyJhbGciOiJIUzM4NCJ9.eyJ...
+
+Крок 3. Запит з токеном
+  [OK]   GET /api/v1/users/me з Bearer-токеном: 200
+         тіло: {"id":"6fdf3434-56cd-4bd0-a8f9-65f60398c415","email":"owner.1793822566@orchestrate.test","displayName":"Owner","roles":["ROLE_USER"]}
+  [OK]   POST /api/v1/households створює дім: 201
+  [OK]   Мешканець приєднався до дому за кодом: 201
+  [OK]   Власник (MANAGE_MEMBERS) читає зведення прав: 200
+
+Крок 4. Користувач без прав
+  [OK]   Мешканець без MANAGE_MEMBERS читає зведення прав: 403
+         тіло: {"type":"https://orchestrate.example.com/problems/access-denied","title":"Access denied","status":403,"detail":"You do not have permission to perform this operation.","instance":"/api/v1/households/dd2200aa-16ad-418c-a9bc-d69cfefa5255/members/permissions","timestamp":"2026-11-04T20:02:54.800984200Z","code":"ACCESS_DENIED"}
+
+Усі перевірки пройдено.

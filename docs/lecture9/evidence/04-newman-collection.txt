@@ -1,0 +1,201 @@
+(node:17016) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead
+(Use `node --trace-deprecation ...` to show where the warning was created)
+newman
+
+Orchestrate — ключовий сценарій: від дому до підтвердженого виконання
+
+□ 1. Підготовка: користувачі
+└ 1.1 Створити користувача Alice (власник)
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/users [201 Created, 834B, 694ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 201 Created
+
+└ 1.2 Створити користувача Bob (мешканець)
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/users [201 Created, 833B, 329ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 201 Created
+
+└ 1.3 Логін Alice (отримати початковий токен)
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/auth/login [200 OK, 853B, 293ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 200 OK
+
+└ 1.4 Логін Bob (отримати початковий токен)
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/auth/login [200 OK, 850B, 308ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 200 OK
+
+└ 1.5 Негатив: некоректний email → 400
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/users [400 Bad Request, 913B, 127ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 400 Bad Request
+  √  Помилка у форматі ProblemDetail з кодом VALIDATION_FAILED
+
+□ 2. Домогосподарство та запрошення
+└ 2.1 Alice створює домогосподарство
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households [201 Created, 853B, 127ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 201 Created
+
+└ 2.2 Оновити токен Alice (отримати права на новий дім)
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/auth/login [200 OK, 1kB, 309ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 200 OK
+
+└ 2.3 Alice створює код запрошення
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households/da24cea3-430f-4db9-ba20-3469880b8102/invitation-code [201 Created, 914B, 145ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 201 Created
+
+└ 2.4 Bob приєднується за кодом
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households/join [201 Created, 908B, 161ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 201 Created
+
+└ 2.5 Оновити токен Bob (отримати права в новому домі)
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/auth/login [200 OK, 933B, 760ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 200 OK
+
+└ 2.6 Негатив: повторне приєднання → 409
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households/join [409 Conflict, 940B, 135ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 409 Conflict
+  √  Помилка у форматі ProblemDetail з кодом ALREADY_HOUSEHOLD_MEMBER
+
+□ 3. Обов'язок та група виконання
+└ 3.1 Alice створює обов'язок (потребує підтвердження)
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/chores [201 Created, 1.02kB, 286ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 201 Created
+
+└ 3.2 Alice приєднується до виконання
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households/da24cea3-430f-4db9-ba20-3469880b8102/chores/b69eac7a-0b18-47b0-8898-72f523ed9ab3/participants [201 Created, 936B, 457ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 201 Created
+
+└ 3.3 Bob приєднується до виконання
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households/da24cea3-430f-4db9-ba20-3469880b8102/chores/b69eac7a-0b18-47b0-8898-72f523ed9ab3/participants [201 Created, 936B, 159ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 201 Created
+
+└ 3.4 Обов'язок більше не потребує уваги
+  GET https://chief-algorithm-yanking.ngrok-free.dev/api/v1/chores/b69eac7a-0b18-47b0-8898-72f523ed9ab3 [200 OK, 900B, 132ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 200 OK
+  √  needsAttention = false
+
+└ 3.5 Відповідальний на цикл — Alice
+  GET https://chief-algorithm-yanking.ngrok-free.dev/api/v1/chores/b69eac7a-0b18-47b0-8898-72f523ed9ab3/assignment [200 OK, 733B, 136ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 200 OK
+
+□ 4. Виконання та підтвердження
+└ 4.1 Негатив: Bob не відповідальний → 409
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/chores/b69eac7a-0b18-47b0-8898-72f523ed9ab3/completions [409 Conflict, 962B, 128ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 409 Conflict
+  √  Помилка у форматі ProblemDetail з кодом NOT_CURRENT_RESPONSIBLE
+
+└ 4.2 Alice відмічає обов'язок виконаним
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/chores/b69eac7a-0b18-47b0-8898-72f523ed9ab3/completions [201 Created, 987B, 182ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 201 Created
+
+└ 4.3 Негатив: Alice не може підтвердити сама себе → 409
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/chores/b69eac7a-0b18-47b0-8898-72f523ed9ab3/completions/50e882b6-76b8-4091-88df-f39770df1f51/confirmation [409 Conflict, 975B, 109ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 409 Conflict
+  √  Помилка у форматі ProblemDetail з кодом SELF_CONFIRMATION_NOT_ALLOWED
+
+└ 4.4 Bob підтверджує виконання
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/chores/b69eac7a-0b18-47b0-8898-72f523ed9ab3/completions/50e882b6-76b8-4091-88df-f39770df1f51/confirmation [200 OK, 878B, 252ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 200 OK
+  √  Виконання підтверджено Bob
+
+└ 4.5 Негатив: повторне рішення → 422
+  POST https://chief-algorithm-yanking.ngrok-free.dev/api/v1/chores/b69eac7a-0b18-47b0-8898-72f523ed9ab3/completions/50e882b6-76b8-4091-88df-f39770df1f51/confirmation [422 Unprocessable Entity, 1.04kB, 105ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 422 Unprocessable Content
+  √  Помилка у форматі ProblemDetail з кодом INVALID_CONFIRMATION_STATUS
+
+□ 5. Перевірка результату та прибирання
+└ 5.1 Ротація перейшла до Bob
+  GET https://chief-algorithm-yanking.ngrok-free.dev/api/v1/chores/b69eac7a-0b18-47b0-8898-72f523ed9ab3/assignment [200 OK, 733B, 114ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 200 OK
+
+└ 5.2 Історія виконань містить підтверджений запис
+  GET https://chief-algorithm-yanking.ngrok-free.dev/api/v1/chores/b69eac7a-0b18-47b0-8898-72f523ed9ab3/completions [200 OK, 877B, 112ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 200 OK
+  √  Є один запис зі статусом CONFIRMED
+
+└ 5.3 Домогосподарства Bob: він мешканець, не власник
+  GET https://chief-algorithm-yanking.ngrok-free.dev/api/v1/users/e4eaa3a4-a631-4ac3-934a-e72d30248371/households [200 OK, 747B, 134ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 200 OK
+  √  У списку є наше домогосподарство, owner = false
+
+└ 5.4 Alice видаляє домогосподарство
+  DELETE https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households/da24cea3-430f-4db9-ba20-3469880b8102 [204 No Content, 509B, 685ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 204 No Content
+
+└ 5.5 Домогосподарство більше не існує → 404
+  GET https://chief-algorithm-yanking.ngrok-free.dev/api/v1/households/da24cea3-430f-4db9-ba20-3469880b8102 [404 Not Found, 913B, 106ms]
+  √  Відповідь містить заголовок X-Trace-Id
+  √  Відповідь надійшла швидше за 2000 мс
+  √  Статус відповіді 404 Not Found
+  √  Помилка у форматі ProblemDetail з кодом HOUSEHOLD_NOT_FOUND
+
+┌─────────────────────────┬─────────────────────┬────────────────────┐
+│                         │            executed │             failed │
+├─────────────────────────┼─────────────────────┼────────────────────┤
+│              iterations │                   1 │                  0 │
+├─────────────────────────┼─────────────────────┼────────────────────┤
+│                requests │                  26 │                  0 │
+├─────────────────────────┼─────────────────────┼────────────────────┤
+│            test-scripts │                  52 │                  0 │
+├─────────────────────────┼─────────────────────┼────────────────────┤
+│      prerequest-scripts │                   1 │                  0 │
+├─────────────────────────┼─────────────────────┼────────────────────┤
+│              assertions │                  88 │                  0 │
+├─────────────────────────┴─────────────────────┴────────────────────┤
+│ total run duration: 8.9s                                           │
+├────────────────────────────────────────────────────────────────────┤
+│ total data received: 7.05kB (approx)                               │
+├────────────────────────────────────────────────────────────────────┤
+│ average response time: 249ms [min: 105ms, max: 760ms, s.d.: 189ms] │
+└────────────────────────────────────────────────────────────────────┘
+npm notice
+npm notice New minor version of npm available! 11.4.2 -> 11.21.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.21.1
+npm notice To update run: npm install -g npm@11.21.1
+npm notice

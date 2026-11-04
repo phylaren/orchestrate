@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Orchestrate — ключовий сценарій: від дому до підтвердженого виконання" tests="26" time="6.485">
+  <testsuite name="1. Підготовка: користувачі / 1.1 Створити користувача Alice (власник)" id="6d53dcb4-52f1-4476-9d41-8475020ee001" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.694">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.694" classname="111Alice"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.694" classname="111Alice"/>
+    <testcase name="Статус відповіді 201 Created" time="0.694" classname="111Alice"/>
+  </testsuite>
+  <testsuite name="1. Підготовка: користувачі / 1.2 Створити користувача Bob (мешканець)" id="8255f7b8-586c-41e3-9cbb-c54e682aa5f5" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.329">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.329" classname="112Bob"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.329" classname="112Bob"/>
+    <testcase name="Статус відповіді 201 Created" time="0.329" classname="112Bob"/>
+  </testsuite>
+  <testsuite name="1. Підготовка: користувачі / 1.3 Логін Alice (отримати початковий токен)" id="4dc844eb-91f4-4fd5-ad51-9f8566250a99" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.293">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.293" classname="113Alice"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.293" classname="113Alice"/>
+    <testcase name="Статус відповіді 200 OK" time="0.293" classname="113Alice"/>
+  </testsuite>
+  <testsuite name="1. Підготовка: користувачі / 1.4 Логін Bob (отримати початковий токен)" id="ff49eaaa-5eac-41dd-b8e7-89836ed15ec2" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.308">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.308" classname="114Bob"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.308" classname="114Bob"/>
+    <testcase name="Статус відповіді 200 OK" time="0.308" classname="114Bob"/>
+  </testsuite>
+  <testsuite name="1. Підготовка: користувачі / 1.5 Негатив: некоректний email → 400" id="e5e323dc-9474-4a6d-9c52-4d270f027e77" timestamp="2026-11-04T20:04:38.758Z" tests="4" failures="0" errors="0" time="0.127">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.127" classname="115Email400"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.127" classname="115Email400"/>
+    <testcase name="Статус відповіді 400 Bad Request" time="0.127" classname="115Email400"/>
+    <testcase name="Помилка у форматі ProblemDetail з кодом VALIDATION_FAILED" time="0.127" classname="115Email400"/>
+  </testsuite>
+  <testsuite name="2. Домогосподарство та запрошення / 2.1 Alice створює домогосподарство" id="825fa459-85e5-4b97-b9dc-cd63c6b97cfd" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.127">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.127" classname="221Alice"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.127" classname="221Alice"/>
+    <testcase name="Статус відповіді 201 Created" time="0.127" classname="221Alice"/>
+  </testsuite>
+  <testsuite name="2. Домогосподарство та запрошення / 2.2 Оновити токен Alice (отримати права на новий дім)" id="57ebab40-06e1-4973-bae0-add4f0d3a932" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.309">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.309" classname="222Alice"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.309" classname="222Alice"/>
+    <testcase name="Статус відповіді 200 OK" time="0.309" classname="222Alice"/>
+  </testsuite>
+  <testsuite name="2. Домогосподарство та запрошення / 2.3 Alice створює код запрошення" id="69a54892-a759-4277-b904-069f958241b1" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.145">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.145" classname="223Alice"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.145" classname="223Alice"/>
+    <testcase name="Статус відповіді 201 Created" time="0.145" classname="223Alice"/>
+  </testsuite>
+  <testsuite name="2. Домогосподарство та запрошення / 2.4 Bob приєднується за кодом" id="67aeb0ff-9822-4b29-a58a-83ff602bb41f" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.161">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.161" classname="224Bob"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.161" classname="224Bob"/>
+    <testcase name="Статус відповіді 201 Created" time="0.161" classname="224Bob"/>
+  </testsuite>
+  <testsuite name="2. Домогосподарство та запрошення / 2.5 Оновити токен Bob (отримати права в новому домі)" id="384c5da8-8dbf-4815-9755-615737c1c126" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.760">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.760" classname="225Bob"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.760" classname="225Bob"/>
+    <testcase name="Статус відповіді 200 OK" time="0.760" classname="225Bob"/>
+  </testsuite>
+  <testsuite name="2. Домогосподарство та запрошення / 2.6 Негатив: повторне приєднання → 409" id="a3d276d0-a2bf-48f1-8685-e4d675195ac4" timestamp="2026-11-04T20:04:38.758Z" tests="4" failures="0" errors="0" time="0.135">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.135" classname="226409"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.135" classname="226409"/>
+    <testcase name="Статус відповіді 409 Conflict" time="0.135" classname="226409"/>
+    <testcase name="Помилка у форматі ProblemDetail з кодом ALREADY_HOUSEHOLD_MEMBER" time="0.135" classname="226409"/>
+  </testsuite>
+  <testsuite name="3. Обов'язок та група виконання / 3.1 Alice створює обов'язок (потребує підтвердження)" id="348ad2a0-affc-41e0-b424-7e86af0c4f5d" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.286">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.286" classname="331Alice"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.286" classname="331Alice"/>
+    <testcase name="Статус відповіді 201 Created" time="0.286" classname="331Alice"/>
+  </testsuite>
+  <testsuite name="3. Обов'язок та група виконання / 3.2 Alice приєднується до виконання" id="b55804c2-7447-47e4-906a-c7c57e705660" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.457">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.457" classname="332Alice"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.457" classname="332Alice"/>
+    <testcase name="Статус відповіді 201 Created" time="0.457" classname="332Alice"/>
+  </testsuite>
+  <testsuite name="3. Обов'язок та група виконання / 3.3 Bob приєднується до виконання" id="f7f19341-39d8-49b7-8d7d-2bcab10b60ac" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.159">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.159" classname="333Bob"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.159" classname="333Bob"/>
+    <testcase name="Статус відповіді 201 Created" time="0.159" classname="333Bob"/>
+  </testsuite>
+  <testsuite name="3. Обов'язок та група виконання / 3.4 Обов'язок більше не потребує уваги" id="bfb08485-9b8a-4a25-bb55-cf7c89c55101" timestamp="2026-11-04T20:04:38.758Z" tests="4" failures="0" errors="0" time="0.132">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.132" classname="334"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.132" classname="334"/>
+    <testcase name="Статус відповіді 200 OK" time="0.132" classname="334"/>
+    <testcase name="needsAttention = false" time="0.132" classname="334"/>
+  </testsuite>
+  <testsuite name="3. Обов'язок та група виконання / 3.5 Відповідальний на цикл — Alice" id="6926ff0b-e74e-4a9e-806f-e38b7148b23b" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.136">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.136" classname="335Alice"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.136" classname="335Alice"/>
+    <testcase name="Статус відповіді 200 OK" time="0.136" classname="335Alice"/>
+  </testsuite>
+  <testsuite name="4. Виконання та підтвердження / 4.1 Негатив: Bob не відповідальний → 409" id="dcec1747-6be7-4daa-b3c9-24645fa4267f" timestamp="2026-11-04T20:04:38.758Z" tests="4" failures="0" errors="0" time="0.128">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.128" classname="441Bob409"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.128" classname="441Bob409"/>
+    <testcase name="Статус відповіді 409 Conflict" time="0.128" classname="441Bob409"/>
+    <testcase name="Помилка у форматі ProblemDetail з кодом NOT_CURRENT_RESPONSIBLE" time="0.128" classname="441Bob409"/>
+  </testsuite>
+  <testsuite name="4. Виконання та підтвердження / 4.2 Alice відмічає обов'язок виконаним" id="d9fa30ca-bcea-49b9-82dc-c9c801ec1844" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.182">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.182" classname="442Alice"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.182" classname="442Alice"/>
+    <testcase name="Статус відповіді 201 Created" time="0.182" classname="442Alice"/>
+  </testsuite>
+  <testsuite name="4. Виконання та підтвердження / 4.3 Негатив: Alice не може підтвердити сама себе → 409" id="5cb1e32a-66bd-4df5-9b02-053fafc14a94" timestamp="2026-11-04T20:04:38.758Z" tests="4" failures="0" errors="0" time="0.109">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.109" classname="443Alice409"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.109" classname="443Alice409"/>
+    <testcase name="Статус відповіді 409 Conflict" time="0.109" classname="443Alice409"/>
+    <testcase name="Помилка у форматі ProblemDetail з кодом SELF_CONFIRMATION_NOT_ALLOWED" time="0.109" classname="443Alice409"/>
+  </testsuite>
+  <testsuite name="4. Виконання та підтвердження / 4.4 Bob підтверджує виконання" id="82029ae7-72ab-4778-8619-37de3289e457" timestamp="2026-11-04T20:04:38.758Z" tests="4" failures="0" errors="0" time="0.252">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.252" classname="444Bob"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.252" classname="444Bob"/>
+    <testcase name="Статус відповіді 200 OK" time="0.252" classname="444Bob"/>
+    <testcase name="Виконання підтверджено Bob" time="0.252" classname="444Bob"/>
+  </testsuite>
+  <testsuite name="4. Виконання та підтвердження / 4.5 Негатив: повторне рішення → 422" id="19649661-c5d9-4050-b824-8825dc718053" timestamp="2026-11-04T20:04:38.758Z" tests="4" failures="0" errors="0" time="0.105">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.105" classname="445422"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.105" classname="445422"/>
+    <testcase name="Статус відповіді 422 Unprocessable Content" time="0.105" classname="445422"/>
+    <testcase name="Помилка у форматі ProblemDetail з кодом INVALID_CONFIRMATION_STATUS" time="0.105" classname="445422"/>
+  </testsuite>
+  <testsuite name="5. Перевірка результату та прибирання / 5.1 Ротація перейшла до Bob" id="24ff1134-7200-425c-a891-8b5ab48633a5" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.114">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.114" classname="551Bob"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.114" classname="551Bob"/>
+    <testcase name="Статус відповіді 200 OK" time="0.114" classname="551Bob"/>
+  </testsuite>
+  <testsuite name="5. Перевірка результату та прибирання / 5.2 Історія виконань містить підтверджений запис" id="a0ccd91b-47f8-4a45-815b-7c528c15769a" timestamp="2026-11-04T20:04:38.758Z" tests="4" failures="0" errors="0" time="0.112">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.112" classname="552"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.112" classname="552"/>
+    <testcase name="Статус відповіді 200 OK" time="0.112" classname="552"/>
+    <testcase name="Є один запис зі статусом CONFIRMED" time="0.112" classname="552"/>
+  </testsuite>
+  <testsuite name="5. Перевірка результату та прибирання / 5.3 Домогосподарства Bob: він мешканець, не власник" id="8b5d699c-a2e4-497e-9e5c-fc8f66440f18" timestamp="2026-11-04T20:04:38.758Z" tests="4" failures="0" errors="0" time="0.134">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.134" classname="553Bob"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.134" classname="553Bob"/>
+    <testcase name="Статус відповіді 200 OK" time="0.134" classname="553Bob"/>
+    <testcase name="У списку є наше домогосподарство, owner = false" time="0.134" classname="553Bob"/>
+  </testsuite>
+  <testsuite name="5. Перевірка результату та прибирання / 5.4 Alice видаляє домогосподарство" id="dd9bd6d9-94ee-4b26-a75d-ae14ddf4e8e7" timestamp="2026-11-04T20:04:38.758Z" tests="3" failures="0" errors="0" time="0.685">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.685" classname="554Alice"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.685" classname="554Alice"/>
+    <testcase name="Статус відповіді 204 No Content" time="0.685" classname="554Alice"/>
+  </testsuite>
+  <testsuite name="5. Перевірка результату та прибирання / 5.5 Домогосподарство більше не існує → 404" id="882a91ad-382d-41df-bb1d-6e29887f6e18" timestamp="2026-11-04T20:04:38.758Z" tests="4" failures="0" errors="0" time="0.106">
+    <testcase name="Відповідь містить заголовок X-Trace-Id" time="0.106" classname="555404"/>
+    <testcase name="Відповідь надійшла швидше за 2000 мс" time="0.106" classname="555404"/>
+    <testcase name="Статус відповіді 404 Not Found" time="0.106" classname="555404"/>
+    <testcase name="Помилка у форматі ProblemDetail з кодом HOUSEHOLD_NOT_FOUND" time="0.106" classname="555404"/>
+  </testsuite>
+</testsuites>

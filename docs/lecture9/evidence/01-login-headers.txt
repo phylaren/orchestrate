@@ -1,0 +1,21 @@
+HTTP/1.1 200 OK
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Content-Language: en-US
+Content-Security-Policy: default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; frame-ancestors 'none'
+Content-Type: text/html;charset=UTF-8
+Date: Wed, 04 Nov 2026 20:02:46 GMT
+Expires: 0
+Ngrok-Agent-Ips: 31.42.175.152
+Pragma: no-cache
+Referrer-Policy: strict-origin-when-cross-origin
+Set-Cookie: JSESSIONID=F334E93EF4DDAAA42B2319B009E72E93; Path=/; Secure; HttpOnly
+Strict-Transport-Security: max-age=31536000 ; includeSubDomains
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-Robots-Tag: noindex, nofollow
+X-Trace-Id: c4972e93-1f90-48dc-a39b-ecb014d88291
+X-Xss-Protection: 0
+
