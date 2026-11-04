@@ -14,12 +14,10 @@ services:
       ORCHESTRATE_JWT_SECRET: ${ORCHESTRATE_JWT_SECRET:?}
       ORCHESTRATE_NOTIFICATION_WEBHOOK_URL: ${ORCHESTRATE_NOTIFICATION_WEBHOOK_URL:?}
       ORCHESTRATE_SECURITY_CORS_ALLOWED_ORIGINS: ${ORCHESTRATE_SECURITY_CORS_ALLOWED_ORIGINS:?}
-      ORCHESTRATE_TRUSTED_PROXIES: ${ORCHESTRATE_TRUSTED_PROXIES:-172[.]28[.]0[.].*}
-    networks:
-      - orchestrate
-    # Порт 8080 доступний лише всередині мережі compose і назовні не публікується.
-    expose:
-      - "8080"
+      ORCHESTRATE_TEST_ENDPOINTS_ENABLED: ${ORCHESTRATE_TEST_ENDPOINTS_ENABLED:-false}
+    # ngrok can reach the app on localhost:8080; the port is not exposed on public interfaces.
+    ports:
+      - "127.0.0.1:8080:8080"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/login"]
       interval: 15s
