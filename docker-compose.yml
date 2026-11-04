@@ -56,14 +56,37 @@ services:
       DOMAIN: ${DOMAIN:-localhost}
     ports:
       - "${NGINX_BIND_ADDRESS:-127.0.0.1}:${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_BIND_ADDRESS:-127.0.0.1}:${NGINX_HTTPS_PORT:-443}:443"
     volumes:
       - ./deploy/nginx/${NGINX_MODE:-tunnel}:/etc/nginx/templates:ro
+      - ./deploy/nginx/docker-entrypoint.d/40-reload-on-renew.sh:/docker-entrypoint.d/40-reload-on-renew.sh:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 10s
+    networks:
+      - orchestrate
+
+  certbot:
+    image: certbot/certbot:latest
+    profiles: ["tls"]
+    restart: unless-stopped
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        trap exit TERM
+        while :; do
+          certbot renew --webroot -w /var/www/certbot --quiet
+          sleep 12h & wait $${!}
+        done
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
     networks:
       - orchestrate
 
@@ -86,3 +109,5 @@ networks:
 
 volumes:
   postgres-data:
+  letsencrypt:
+  certbot-www:
