@@ -981,6 +981,18 @@ spring.lifecycle.timeout-per-shutdown-phase=30s
 зупиняються біни та пул з'єднань БД. `ENTRYPOINT` в exec-формі, тож сигнал отримує саме JVM.
 `stop_grace_period: 40s` у compose більший за 30 с, щоб Docker не вбив процес раніше (`SIGKILL`).
 
+Для демонстраційної перевірки є endpoint `GET /__test/slow?seconds=15`. Він вимкнений за
+замовчуванням; увімкніть `ORCHESTRATE_TEST_ENDPOINTS_ENABLED=true` у `.env` і пересоздайте
+контейнер командою `docker compose up -d --force-recreate app`. Максимальна затримка — 25 секунд,
+щоб запит вклався у 30-секундний graceful timeout.
+Порт `8080` прив'язаний лише до loopback, тож локальний ngrok може проксувати його командою
+`ngrok http 8080`, не відкриваючи порт напряму в інтернет.
+
+Перевірка: у першому терміналі запустіть `curl -v --max-time 35 "http://localhost:8080/__test/slow?seconds=15"`,
+а поки запит очікує — у другому виконайте `docker compose stop app`. Запит має завершитися з
+`200 OK` і текстом `Completed after 15 seconds`; після перевірки встановіть прапорець у `false`
+і повторно виконайте `docker compose up -d --force-recreate app`.
+
 ### Запуск і перевірка
 
 ```bash
