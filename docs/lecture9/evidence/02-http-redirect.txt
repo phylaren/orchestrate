@@ -1,0 +1,6 @@
+HTTP/1.1 307 Temporary Redirect
+Connection: close
+Content-Type: text/html; charset=utf-8
+Location: https://chief-algorithm-yanking.ngrok-free.dev/login
+Date: Wed, 04 Nov 2026 20:02:46 GMT
+

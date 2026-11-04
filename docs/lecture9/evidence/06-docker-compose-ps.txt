@@ -1,0 +1,5 @@
+NAME                        IMAGE                           COMMAND                  SERVICE       CREATED          STATUS                            PORTS
+orchestrate-app-1           orchestrate-app                 "java -jar app.jar"      app           41 minutes ago   Up 41 minutes (healthy)           8080/tcp
+orchestrate-cloudflared-1   cloudflare/cloudflared:latest   "cloudflared tunnel …"   cloudflared   5 hours ago      Up Less than a second             
+orchestrate-nginx-1         nginx:1.27-alpine               "/docker-entrypoint.…"   nginx         41 minutes ago   Restarting (127) 42 seconds ago   
+orchestrate-postgres-1      postgres:17-alpine              "docker-entrypoint.s…"   postgres      5 hours ago      Up 5 hours (healthy)              5432/tcp

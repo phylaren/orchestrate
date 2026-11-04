@@ -22,7 +22,7 @@ FAILED=0
 
 json_field() {
     # json_field '<json>' <field> — значення рядкового поля верхнього рівня
-    printf '%s' "$1" | sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p"
+    printf '%s' "$1" | tr -d '\r\n' | sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p"
 }
 
 check() {
@@ -47,15 +47,25 @@ login() {
         -d "{\"username\":\"$1\",\"password\":\"$PASSWORD\"}"
 }
 
-echo "Підготовка: користувачі, дім і запрошення ($BASE_URL)"
-check "Реєстрація власника (публічний ендпоінт)" 201 "$(register Owner "$OWNER_EMAIL")"
-check "Реєстрація мешканця (публічний ендпоінт)" 201 "$(register Resident "$RESIDENT_EMAIL")"
-
 echo
 echo "Крок 1. Запит без токена"
 STATUS=$(curl -s -o /tmp/orchestrate-401.json -w '%{http_code}' "$API/users/me")
+if [ "$STATUS" != "401" ]; then
+    printf '  [FAIL] API недоступний або повернув неочікуваний статус: очікувався 401, отримано %s\n' "$STATUS"
+    if grep -q 'ERR_NGROK_8012' /tmp/orchestrate-401.json; then
+        printf '         ngrok не може з’єднатися з upstream. Застосунок слухає порт 8080, а тунель спрямовано на localhost:80.\n'
+        printf '         Налаштуйте тунель на порт, доступний з його середовища; у docker-compose.yml порт 8080 не опубліковано на хост.\n'
+    fi
+    rm -f /tmp/orchestrate-401.json
+    exit 1
+fi
 check "GET /api/v1/users/me без Authorization" 401 "$STATUS"
 printf '         тіло: %s\n' "$(cat /tmp/orchestrate-401.json)"
+
+echo
+echo "Підготовка: користувачі, дім і запрошення ($BASE_URL)"
+check "Реєстрація власника (публічний ендпоінт)" 201 "$(register Owner "$OWNER_EMAIL")"
+check "Реєстрація мешканця (публічний ендпоінт)" 201 "$(register Resident "$RESIDENT_EMAIL")"
 
 echo
 echo "Крок 2. Вхід і отримання токена"
@@ -75,15 +85,60 @@ STATUS=$(curl -s -o /tmp/orchestrate-200.json -w '%{http_code}' "$API/users/me" 
 check "GET /api/v1/users/me з Bearer-токеном" 200 "$STATUS"
 printf '         тіло: %s\n' "$(cat /tmp/orchestrate-200.json)"
 
-HOUSEHOLD_ID=$(json_field "$(curl -s -X POST "$API/households" \
+HOUSEHOLD_RESPONSE=$(curl -s -w '\n%{http_code}' -X POST "$API/households" \
     -H "Authorization: Bearer $OWNER_TOKEN" -H 'Content-Type: application/json' \
-    -d '{"name":"Квартира"}')" id)
-CODE=$(json_field "$(curl -s -X POST "$API/households/$HOUSEHOLD_ID/invitation-code" \
-    -H "Authorization: Bearer $OWNER_TOKEN")" code)
-STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/households/join" \
+    -d '{"name":"\u041a\u0432\u0430\u0440\u0442\u0438\u0440\u0430"}')
+HOUSEHOLD_STATUS=$(printf '%s\n' "$HOUSEHOLD_RESPONSE" | tail -n 1)
+HOUSEHOLD_BODY=$(printf '%s\n' "$HOUSEHOLD_RESPONSE" | sed '$d')
+check "POST /api/v1/households створює дім" 201 "$HOUSEHOLD_STATUS"
+HOUSEHOLD_ID=$(json_field "$HOUSEHOLD_BODY" id)
+if [ -z "$HOUSEHOLD_ID" ]; then
+    printf '  [FAIL] Не вдалося отримати ID домогосподарства (HTTP %s); відповідь API: %s\n' \
+        "$HOUSEHOLD_STATUS" "$HOUSEHOLD_BODY"
+    exit 1
+fi
+OWNER_TOKEN=$(json_field "$(login "$OWNER_EMAIL")" accessToken)
+if [ -z "$OWNER_TOKEN" ]; then
+    printf '  [FAIL] Не вдалося оновити токен власника після створення домогосподарства\n'
+    exit 1
+fi
+INVITATION_RESPONSE=$(curl -s -w '\n%{http_code}' -X POST "$API/households/$HOUSEHOLD_ID/invitation-code" \
+    -H "Authorization: Bearer $OWNER_TOKEN")
+INVITATION_STATUS=$(printf '%s\n' "$INVITATION_RESPONSE" | tail -n 1)
+INVITATION_BODY=$(printf '%s\n' "$INVITATION_RESPONSE" | sed '$d')
+if [ "$INVITATION_STATUS" != "201" ]; then
+    printf '  [FAIL] Створення коду запрошення: очікувався 201, отримано %s\n' "$INVITATION_STATUS"
+    printf '         тіло: %s\n' "$(printf '%s' "$INVITATION_BODY" | sed 's/"code":"[^"]*"/"code":"[redacted]"/g')"
+    exit 1
+fi
+CODE=$(json_field "$INVITATION_BODY" code)
+if [ -z "$CODE" ]; then
+    printf '  [FAIL] Не вдалося отримати код запрошення з відповіді API\n'
+    exit 1
+fi
+case "$CODE" in
+    ????????)
+        case "$CODE" in
+            *[!A-Z2-9]*)
+                printf '  [FAIL] API повернув код запрошення у неочікуваному форматі\n'
+                exit 1
+                ;;
+        esac
+        ;;
+    *)
+        printf '  [FAIL] API повернув код запрошення неочікуваної довжини (%s замість 8)\n' "${#CODE}"
+        exit 1
+        ;;
+esac
+STATUS=$(curl -s -o /tmp/orchestrate-join.json -w '%{http_code}' -X POST "$API/households/join" \
     -H "Authorization: Bearer $RESIDENT_TOKEN" -H 'Content-Type: application/json' \
     -d "{\"code\":\"$CODE\"}")
 check "Мешканець приєднався до дому за кодом" 201 "$STATUS"
+if [ "$STATUS" != "201" ]; then
+    printf '         тіло: %s\n' "$(sed "s/$CODE/[redacted]/g" /tmp/orchestrate-join.json)"
+    rm -f /tmp/orchestrate-join.json
+    exit 1
+fi
 
 STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$API/households/$HOUSEHOLD_ID/members/permissions" \
     -H "Authorization: Bearer $OWNER_TOKEN")
@@ -97,7 +152,7 @@ STATUS=$(curl -s -o /tmp/orchestrate-403.json -w '%{http_code}' \
 check "Мешканець без MANAGE_MEMBERS читає зведення прав" 403 "$STATUS"
 printf '         тіло: %s\n' "$(cat /tmp/orchestrate-403.json)"
 
-rm -f /tmp/orchestrate-401.json /tmp/orchestrate-200.json /tmp/orchestrate-403.json
+rm -f /tmp/orchestrate-401.json /tmp/orchestrate-200.json /tmp/orchestrate-403.json /tmp/orchestrate-join.json
 
 echo
 if [ "$FAILED" -eq 0 ]; then
