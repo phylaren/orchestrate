@@ -71,7 +71,7 @@ class SecurityConfiguration {
     SecurityFilterChain webFilterChain(HttpSecurity http) {
         return http
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/css/**", "/js/**", "/error").permitAll()
+                        .requestMatchers("/login", "/css/**", "/js/**", "/error", "/__test/**").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(form -> form
                         .loginPage("/login")

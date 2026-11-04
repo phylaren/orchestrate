@@ -14,7 +14,11 @@ services:
       ORCHESTRATE_JWT_SECRET: ${ORCHESTRATE_JWT_SECRET:?}
       ORCHESTRATE_NOTIFICATION_WEBHOOK_URL: ${ORCHESTRATE_NOTIFICATION_WEBHOOK_URL:?}
       ORCHESTRATE_SECURITY_CORS_ALLOWED_ORIGINS: ${ORCHESTRATE_SECURITY_CORS_ALLOWED_ORIGINS:?}
-    # Порт 8080 доступний лише всередині мережі compose і назовні не публікується.
+      ORCHESTRATE_TEST_ENDPOINTS_ENABLED: ${ORCHESTRATE_TEST_ENDPOINTS_ENABLED:-false}
+    # Loopback only: permits local tools such as ngrok without exposing the app directly.
+    ports:
+      - "127.0.0.1:8080:8080"
+    # Порт 8080 опублікований лише на loopback-інтерфейсі хоста.
     expose:
       - "8080"
     healthcheck:
