@@ -1,3 +1,4 @@
+DELETE FROM audit_log;
 DELETE FROM scheduled_swaps;
 DELETE FROM swap_requests;
 DELETE FROM chore_completions;
