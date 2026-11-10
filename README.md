@@ -513,6 +513,9 @@ Content-Type: application/problem+json
 | Провайдер поточного користувача | `identity/internal/SecurityContextCurrentUserProvider.java` |
 | `AuthenticationManager` | `identity/internal/AuthenticationManagerConfig.java` |
 | Помилка логіну в `ProblemDetail` | `common/exception/GlobalExceptionHandler.java` → `handleAuthentication` |
+| API журналу аудиту (`AuditLogService`, `AuditRecord`) | `audit/` |
+| `AuditLogEntity`, `AuditLogRepository` (Spring Data JPA, `save` у `REQUIRES_NEW`) | `audit/internal/` |
+| Збереження аудиту без підміни винятку бізнес-методу | `audit/internal/JpaAuditLogService.java` |
 
 Реалізація `canTransitionTo` (на прикладі `SwapRequestStatus`):
 
@@ -569,6 +572,7 @@ if (!currentStatus.canTransitionTo(targetStatus)) {
 | `identity/internal/JwtAuthenticationFilterTest` | Без заголовка, не-Bearer, валідний токен, підроблений, невідомий користувач, вже автентифікований |
 | `identity/internal/SecurityContextCurrentUserProviderTest` | UUID з principal, обидва шляхи помилки |
 | `identity/internal/AuthenticationManagerConfigTest` | Правильний і неправильний пароль |
+| `audit/internal/AuditLogPersistenceTest` | Усі колонки `audit_log`; запис аудиту переживає відкат транзакції при `ValidationException` і `BusinessRuleViolationException`; збій запису не кидає винятку; обрізання довгих аргументів |
 
 Матриці в тестах і в цьому файлі мають збігатися: якщо змінюєте одну — змінюйте й іншу.
 
