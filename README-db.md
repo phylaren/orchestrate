@@ -17,7 +17,7 @@
 
 | Що | Де |
 |---|---|
-| DDL | `src/main/resources/db/migration/V1__init_schema.sql`, далі `V2__user_credentials.sql` (облікові дані користувачів) |
+| DDL | `src/main/resources/db/migration/V1__init_schema.sql`, далі `V2__user_credentials.sql` (облікові дані користувачів), `V3__user_roles.sql` (ролі), `V4__audit_log.sql` (журнал аудиту) |
 | Міграції | Flyway (`spring.flyway.enabled=true`), каталог `classpath:db/migration` |
 | База | H2 in-memory: `jdbc:h2:mem:orchestrate;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1` |
 | База в профілі `prod` | PostgreSQL 17: `spring.datasource.*` з `ORCHESTRATE_DB_URL`, `ORCHESTRATE_DB_USERNAME`, `ORCHESTRATE_DB_PASSWORD` (див. [розгортання в Docker](README.md#розгортання-docker-compose)) |
@@ -43,6 +43,7 @@
 | 10 | `chore_completions` | `chore` | факти виконання та підтвердження | `id` UUID |
 | 11 | `swap_requests` | `swap` | запити на обмін чергою | `id` UUID |
 | 12 | `scheduled_swaps` | `swap` / `chore` | відкладений обмін для `TEMPORARY`, застосовується при `advance` | `id` UUID |
+| 13 | `audit_log` | `audit` | журнал аудиту бізнес-операцій: один рядок = один виклик `@AuditAction` | `id` UUID |
 
 ## 3. Стовпці
 
@@ -108,6 +109,17 @@
 | `scheduled_swaps` | `to_user_id` | `UUID` | NOT NULL | FK → `users.id`, `RESTRICT` |
 | `scheduled_swaps` | `cycle_number` | `INT` | NOT NULL | цикл, у якому обмін застосовується |
 | `scheduled_swaps` | `created_at` | `TIMESTAMP WITH TIME ZONE` | NOT NULL | момент створення |
+| `audit_log` | `id` | `UUID` | NOT NULL | первинний ключ |
+| `audit_log` | `occurred_at` | `TIMESTAMP WITH TIME ZONE` | NOT NULL | момент початку виклику |
+| `audit_log` | `user_id` | `UUID` | NULL | поточний користувач; без FK (див. BR-D12); `NULL` — анонімний виклик |
+| `audit_log` | `action` | `VARCHAR(100)` | NOT NULL | предметна назва операції з `@AuditAction` |
+| `audit_log` | `method_name` | `VARCHAR(255)` | NOT NULL | `Клас.метод` |
+| `audit_log` | `arguments` | `VARCHAR(4000)` | NULL | аргументи; довші значення обрізаються з `…`; `NULL`, якщо логування параметрів вимкнене |
+| `audit_log` | `result` | `VARCHAR(4000)` | NULL | результат; `NULL` для `void` і при помилці |
+| `audit_log` | `success` | `BOOLEAN` | NOT NULL | чи завершився метод без винятку |
+| `audit_log` | `error_type` | `VARCHAR(255)` | NULL | повна назва класу винятку |
+| `audit_log` | `error_message` | `VARCHAR(2000)` | NULL | повідомлення винятку |
+| `audit_log` | `duration_ms` | `BIGINT` | NOT NULL | `chk_audit_log_duration`: >= 0 |
 
 ## 4. Цілісність: зовнішні ключі, CHECK, індекси
 
@@ -149,6 +161,8 @@
 | `chk_swap_requests_swap_type` | `swap_type IN ('PERMANENT','TEMPORARY')` |
 | `chk_swap_requests_initiator_receiver` | `initiator_user_id <> receiver_user_id` |
 | `chk_swap_requests_cycle_number` | `TEMPORARY` → `cycle_number IS NOT NULL`; `PERMANENT` → `cycle_number IS NULL` |
+| `chk_audit_log_duration` | `duration_ms >= 0` |
+| `chk_audit_log_outcome` | `success = TRUE` → `error_type` і `error_message` `NULL`; `success = FALSE` → `error_type IS NOT NULL` |
 
 ### Унікальність та індекси
 
@@ -163,6 +177,7 @@
 | `idx_swap_requests_pending` | перевірка дублю `PENDING` за парою учасників |
 | `idx_scheduled_swaps_chore_cycle` | пошук і очищення відкладених обмінів за циклом |
 | `idx_memberships_user` | доми користувача |
+| `idx_audit_log_occurred_at`, `idx_audit_log_user`, `idx_audit_log_action` | вибірка журналу аудиту за часом, користувачем, операцією |
 
 ## 5. Правила БД
 
@@ -179,3 +194,4 @@
 | BR-D9 | Зміна схеми — тільки новою міграцією (`V2__*.sql`); застосований файл не редагується. `ddl-auto=validate` нічого не створює і не змінює — розбіжність схеми й сутностей валить старт застосунку. |
 | BR-D10 | Колонок версій (`@Version`) немає, тому конкурентні оновлення того самого рядка на рівні БД не захищені. |
 | BR-D11 | Крос-модульні зовнішні ключі вимагають наявних рядків у цільових таблицях: `user`, `household` і `chore` мають бути заповнені в БД раніше за `swap_requests` і `scheduled_swaps`, інакше вставка відхиляється `FK`-перевіркою. |
+| BR-D12 | `audit_log` пишеться в **окремій транзакції** (`AuditLogRepository.save` з `Propagation.REQUIRES_NEW`): відкат бізнес-транзакції через помилку валідації чи бізнес-правила не знищує запис. `user_id` без FK — запис історичний і переживає видалення користувача. Збій запису аудиту журналюється в `JpaAuditLogService` і не підміняє оригінальний виняток бізнес-методу. |

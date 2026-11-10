@@ -24,11 +24,11 @@ class PostgresMigrationIntegrationTest {
     }
 
     @Test
-    @DisplayName("міграції Flyway V1–V3 успішно застосовані до PostgreSQL")
+    @DisplayName("міграції Flyway V1–V4 успішно застосовані до PostgreSQL")
     void flywayMigrationsApplied() {
         Long applied = jdbc.sql("select count(*) from flyway_schema_history where success")
                 .query(Long.class).single();
 
-        assertThat(applied).isGreaterThanOrEqualTo(3);
+        assertThat(applied).isGreaterThanOrEqualTo(4);
     }
 }
