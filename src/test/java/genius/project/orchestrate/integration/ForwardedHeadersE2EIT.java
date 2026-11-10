@@ -6,6 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -16,6 +17,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @E2ETest
 @Import(RequestInfoTestConfiguration.class)
+@TestPropertySource(properties = {
+        "server.forward-headers-strategy=native",
+        "server.tomcat.remoteip.internal-proxies=127[.]0[.]0[.]1|0:0:0:0:0:0:0:1|::1"
+})
 class ForwardedHeadersE2EIT {
 
     @LocalServerPort

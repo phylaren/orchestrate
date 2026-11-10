@@ -17,7 +17,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @E2ETest
 @Import(RequestInfoTestConfiguration.class)
-@TestPropertySource(properties = "server.tomcat.remoteip.internal-proxies=192[.]0[.]2[.].*")
+@TestPropertySource(properties = {
+        "server.forward-headers-strategy=native",
+        "server.tomcat.remoteip.internal-proxies=192[.]0[.]2[.].*"
+})
 class ForwardedHeadersUntrustedProxyE2EIT {
 
     @LocalServerPort
