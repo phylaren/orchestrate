@@ -14,16 +14,16 @@ class JpaAuditLogService implements AuditLogService {
     private static final Logger log = LoggerFactory.getLogger(JpaAuditLogService.class);
     private static final String TRUNCATION_MARK = "…";
 
-    private final AuditLogRepository repository;
+    private final AuditLogWriter writer;
 
-    JpaAuditLogService(AuditLogRepository repository) {
-        this.repository = repository;
+    JpaAuditLogService(AuditLogWriter writer) {
+        this.writer = writer;
     }
 
     @Override
     public void record(AuditRecord record) {
         try {
-            repository.save(toEntity(record));
+            writer.save(toEntity(record));
         } catch (RuntimeException ex) {
             // Збій аудиту не повинен підміняти виняток бізнес-методу, який аспект прокидає далі.
             log.error("Не вдалося зберегти запис аудиту: action={}, method={}",

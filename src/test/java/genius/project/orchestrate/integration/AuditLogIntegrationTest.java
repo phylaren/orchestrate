@@ -83,6 +83,34 @@ class AuditLogIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    @DisplayName("помилка валідації: запис success=false, оригінальний виняток дійшов клієнту (400)")
+    void validationFailure_IsAuditedAndNotSwallowed() throws Exception {
+        UUID household = db.household(owner);
+        db.member(household, resident, MembershipPermission.CONFIRM_COMPLETIONS);
+        UUID chore = db.chore(household, "Сміття", false);
+
+        // Додаємо обох у групу виконання
+        call(post("/api/v1/households/{h}/chores/{c}/participants", household, chore), ownerToken)
+                .andExpect(status().isCreated());
+        call(post("/api/v1/households/{h}/chores/{c}/participants", household, chore), residentToken)
+                .andExpect(status().isCreated());
+
+        // Спроба створити TEMPORARY swap без cycleNumber (кидає InvalidCycleNumberException -> ValidationException)
+        call(post("/api/v1/chores/{c}/swap-requests", chore), ownerToken, """
+                {"receiverUserId":"%s","swapType":"TEMPORARY"}
+                """.formatted(resident))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MISSING_CYCLE_NUMBER"));
+
+        // Перевіряємо, що аудит зафіксував помилку валідації
+        assertThat(db.count("audit_log",
+                "action = ? and success = false and user_id = ?",
+                "CREATE_SWAP_REQUEST", owner)).isEqualTo(1);
+        assertThat(db.text("select error_type from audit_log where action = ?", "CREATE_SWAP_REQUEST"))
+                .isEqualTo("genius.project.orchestrate.common.exception.InvalidCycleNumberException");
+    }
+
+    @Test
     @DisplayName("створення коду запрошення: код не зберігається ні в аргументах, ні в результаті")
     void invitationCode_IsNeverStored() throws Exception {
         UUID household = db.household(owner);

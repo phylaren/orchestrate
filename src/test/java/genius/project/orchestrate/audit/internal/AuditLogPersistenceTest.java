@@ -25,10 +25,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * Без {@code @Transactional} на класі: тест сам керує бізнес-транзакцією, щоб перевірити,
- * що запис аудиту переживає її відкат.
- */
 @SpringBootTest
 class AuditLogPersistenceTest {
 
@@ -77,8 +73,7 @@ class AuditLogPersistenceTest {
     static Stream<Arguments> businessFailures() {
         return Stream.of(
                 Arguments.of(new ValidationException("INVALID_NAME", "Назва не може бути порожньою")),
-                Arguments.of(new BusinessRuleViolationException("OWNER_MUST_TRANSFER_OWNERSHIP",
-                        "Спершу передайте власність")));
+                Arguments.of(new BusinessRuleViolationException("OWNER_MUST_TRANSFER_OWNERSHIP", "Спершу передайте власність")));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -127,5 +122,31 @@ class AuditLogPersistenceTest {
             assertThat(row.getUserId()).isNull();
             assertThat(row.getArguments()).hasSize(AuditLogEntity.ARGUMENTS_LENGTH).endsWith("…");
         });
+    }
+
+    @Test
+    @DisplayName("занадто довгий текст помилки обрізається до розміру колонки")
+    void record_LongErrorMessage_ShouldBeTruncated() {
+        String huge = "y".repeat(AuditLogEntity.ERROR_MESSAGE_LENGTH + 500);
+        auditLogService.record(AuditRecord.failure(null, "FAIL_MSG", "X.fail",
+                null, new IllegalStateException(huge), AT, 0));
+
+        assertThat(repository.findByActionOrderByOccurredAtDesc("FAIL_MSG"))
+                .singleElement().satisfies(row ->
+                        assertThat(row.getErrorMessage())
+                                .hasSize(AuditLogEntity.ERROR_MESSAGE_LENGTH).endsWith("…"));
+    }
+
+    @Test
+    @DisplayName("занадто довгий результат обрізається до розміру колонки")
+    void record_LongResult_ShouldBeTruncated() {
+        String huge = "z".repeat(AuditLogEntity.RESULT_LENGTH + 500);
+        auditLogService.record(AuditRecord.success(null, "LONG_RESULT", "X.longResult",
+                null, huge, AT, 0));
+
+        assertThat(repository.findByActionOrderByOccurredAtDesc("LONG_RESULT"))
+                .singleElement().satisfies(row ->
+                        assertThat(row.getResult())
+                                .hasSize(AuditLogEntity.RESULT_LENGTH).endsWith("…"));
     }
 }

@@ -1,6 +1,8 @@
 package genius.project.orchestrate.audit.internal;
 
 import genius.project.orchestrate.audit.AuditAction;
+import genius.project.orchestrate.audit.AuditLogService;
+import genius.project.orchestrate.audit.AuditRecord;
 import genius.project.orchestrate.identity.CurrentUserProvider;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -22,11 +24,11 @@ public class AuditLoggingAspect {
 
     private static final Logger log = LoggerFactory.getLogger(AuditLoggingAspect.class);
 
-    private final AuditLogWriter writer;
+    private final AuditLogService auditLogService;
     private final CurrentUserProvider currentUserProvider;
 
-    AuditLoggingAspect(AuditLogWriter writer, CurrentUserProvider currentUserProvider) {
-        this.writer = writer;
+    AuditLoggingAspect(AuditLogService auditLogService, CurrentUserProvider currentUserProvider) {
+        this.auditLogService = auditLogService;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -57,13 +59,21 @@ public class AuditLoggingAspect {
             String arguments = auditAction.logParameters()
                     ? formatArguments(signature, joinPoint.getArgs()) : null;
             String resultText = auditAction.logResult() && result != null
-                    ? abbreviate(String.valueOf(result), AuditLogEntity.RESULT_LENGTH) : null;
-            String errorType = failure != null ? failure.getClass().getName() : null;
-            String errorMessage = failure != null && auditAction.logParameters()
-                    ? abbreviate(failure.getMessage(), AuditLogEntity.ERROR_MESSAGE_LENGTH) : null;
+                    ? String.valueOf(result) : null;
 
-            writer.save(new AuditLogEntity(UUID.randomUUID(), occurredAt, userId, auditAction.action(),
-                    methodName, arguments, resultText, failure == null, errorType, errorMessage, durationMs));
+            AuditRecord record = new AuditRecord(
+                    userId,
+                    auditAction.action(),
+                    methodName,
+                    arguments,
+                    resultText,
+                    failure == null,
+                    failure != null ? failure.getClass().getName() : null,
+                    failure != null && auditAction.logParameters() ? failure.getMessage() : null,
+                    occurredAt,
+                    durationMs);
+
+            auditLogService.record(record);
         } catch (RuntimeException ex) {
             log.error("Could not store audit record for action={}", auditAction.action(), ex);
         }
@@ -72,32 +82,21 @@ public class AuditLoggingAspect {
     private UUID resolveUserId() {
         try {
             return currentUserProvider.getUserId();
-        } catch (RuntimeException ex) {
+        } catch (IllegalStateException ex) {
             return null;
         }
     }
 
     private static String formatArguments(MethodSignature signature, Object[] args) {
-        if (args.length == 0) {
-            return null;
-        }
+        if (args.length == 0) return null;
         String[] names = signature.getParameterNames();
         StringBuilder text = new StringBuilder();
         for (int i = 0; i < args.length; i++) {
-            if (i > 0) {
-                text.append(", ");
-            }
+            if (i > 0) text.append(", ");
             text.append(names != null && i < names.length ? names[i] : "arg" + i)
                     .append('=')
                     .append(args[i]);
         }
-        return abbreviate(text.toString(), AuditLogEntity.ARGUMENTS_LENGTH);
-    }
-
-    private static String abbreviate(String text, int max) {
-        if (text == null || text.length() <= max) {
-            return text;
-        }
-        return text.substring(0, max - 3) + "...";
+        return text.toString();
     }
 }

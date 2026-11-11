@@ -1,6 +1,8 @@
 package genius.project.orchestrate.audit.internal;
 
 import genius.project.orchestrate.audit.AuditAction;
+import genius.project.orchestrate.audit.AuditLogService;
+import genius.project.orchestrate.audit.AuditRecord;
 import genius.project.orchestrate.identity.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,7 +24,7 @@ class AuditLoggingAspectTest {
 
     private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000f1");
 
-    private final AuditLogWriter writer = mock(AuditLogWriter.class);
+    private final AuditLogService auditLogService = mock(AuditLogService.class);
     private final CurrentUserProvider currentUserProvider = mock(CurrentUserProvider.class);
     private Target target;
 
@@ -30,27 +32,26 @@ class AuditLoggingAspectTest {
     void setUp() {
         when(currentUserProvider.getUserId()).thenReturn(USER_ID);
         AspectJProxyFactory factory = new AspectJProxyFactory(new Target());
-        factory.addAspect(new AuditLoggingAspect(writer, currentUserProvider));
+        factory.addAspect(new AuditLoggingAspect(auditLogService, currentUserProvider));
         target = factory.getProxy();
     }
 
     @Test
-    @DisplayName("успіх: id, користувач, метод, аргументи, результат і час зафіксовані")
+    @DisplayName("успіх: користувач, метод, аргументи, результат і час зафіксовані")
     void success_RecordsAllData() {
         String result = target.work("abc", 3);
 
         assertThat(result).isEqualTo("abc3");
-        AuditLogEntity entry = captured();
-        assertThat(entry.getId()).isNotNull();
-        assertThat(entry.getUserId()).isEqualTo(USER_ID);
-        assertThat(entry.getAction()).isEqualTo("WORK");
-        assertThat(entry.getMethodName()).isEqualTo("Target.work");
-        assertThat(entry.getArguments()).isEqualTo("name=abc, n=3");
-        assertThat(entry.getResult()).isEqualTo("abc3");
-        assertThat(entry.isSuccess()).isTrue();
-        assertThat(entry.getErrorType()).isNull();
-        assertThat(entry.getOccurredAt()).isNotNull();
-        assertThat(entry.getDurationMs()).isGreaterThanOrEqualTo(0);
+        AuditRecord record = captured();
+        assertThat(record.userId()).isEqualTo(USER_ID);
+        assertThat(record.action()).isEqualTo("WORK");
+        assertThat(record.methodName()).isEqualTo("Target.work");
+        assertThat(record.arguments()).isEqualTo("name=abc, n=3");
+        assertThat(record.result()).isEqualTo("abc3");
+        assertThat(record.success()).isTrue();
+        assertThat(record.errorType()).isNull();
+        assertThat(record.occurredAt()).isNotNull();
+        assertThat(record.durationMs()).isGreaterThanOrEqualTo(0);
     }
 
     @Test
@@ -60,61 +61,39 @@ class AuditLoggingAspectTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("bad s3cret");
 
-        AuditLogEntity entry = captured();
-        assertThat(entry.isSuccess()).isFalse();
-        assertThat(entry.getErrorType()).isEqualTo(IllegalArgumentException.class.getName());
-        assertThat(entry.getArguments()).isNull();
-        assertThat(entry.getErrorMessage()).isNull();
-    }
-
-    @Test
-    @DisplayName("довгий текст помилки та результат обрізаються до меж колонок")
-    void longValues_AreTruncatedToColumnLimits() {
-        assertThatThrownBy(() -> target.failLong()).isInstanceOf(IllegalStateException.class);
-
-        AuditLogEntity entry = captured();
-        assertThat(entry.getErrorMessage()).hasSize(AuditLogEntity.ERROR_MESSAGE_LENGTH).endsWith("...");
+        AuditRecord record = captured();
+        assertThat(record.success()).isFalse();
+        assertThat(record.errorType()).isEqualTo(IllegalArgumentException.class.getName());
+        assertThat(record.arguments()).isNull();
+        assertThat(record.errorMessage()).isNull();
     }
 
     @Test
     @DisplayName("без автентифікованого користувача запис робиться з user_id = null")
     void anonymous_RecordsNullUser() {
         when(currentUserProvider.getUserId()).thenThrow(new IllegalStateException("No authenticated user"));
-
         target.work("a", 1);
-
-        assertThat(captured().getUserId()).isNull();
+        assertThat(captured().userId()).isNull();
     }
 
     @Test
     @DisplayName("збій запису аудиту не ламає бізнес-операцію")
-    void writerFailure_DoesNotBreakBusinessMethod() {
-        doThrow(new IllegalStateException("db down")).when(writer).save(any());
-
+    void serviceFailure_DoesNotBreakBusinessMethod() {
+        doThrow(new IllegalStateException("db down")).when(auditLogService).record(any());
         assertThat(target.work("a", 1)).isEqualTo("a1");
     }
 
-    private AuditLogEntity captured() {
-        ArgumentCaptor<AuditLogEntity> captor = ArgumentCaptor.forClass(AuditLogEntity.class);
-        verify(writer).save(captor.capture());
+    private AuditRecord captured() {
+        ArgumentCaptor<AuditRecord> captor = ArgumentCaptor.forClass(AuditRecord.class);
+        verify(auditLogService).record(captor.capture());
         return captor.getValue();
     }
 
     public static class Target {
-
         @AuditAction(action = "WORK")
-        public String work(String name, int n) {
-            return name + n;
-        }
+        public String work(String name, int n) { return name + n; }
 
         @AuditAction(action = "FAIL", logParameters = false)
-        public void fail(String secret) {
-            throw new IllegalArgumentException("bad " + secret);
-        }
-
-        @AuditAction(action = "FAIL_LONG")
-        public void failLong() {
-            throw new IllegalStateException("x".repeat(AuditLogEntity.ERROR_MESSAGE_LENGTH + 500));
-        }
+        public void fail(String secret) { throw new IllegalArgumentException("bad " + secret); }
     }
 }
