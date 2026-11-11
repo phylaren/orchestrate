@@ -25,6 +25,7 @@ import genius.project.orchestrate.user.client.UserClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import genius.project.orchestrate.audit.AuditAction;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -63,7 +64,7 @@ public class HouseholdServiceImpl implements HouseholdService {
         this.currentUserProvider = currentUserProvider;
     }
 
-    @Override
+    @Override @AuditAction(action = "CREATE_HOUSEHOLD")
     public Household createHousehold(String name) {
         UUID ownerId = currentUserProvider.getUserId();
         requireUserExists(ownerId);
@@ -83,7 +84,7 @@ public class HouseholdServiceImpl implements HouseholdService {
         return household;
     }
 
-    @Override
+    @Override @AuditAction(action = "DELETE_HOUSEHOLD")
     public void deleteHousehold(UUID householdId) {
         UUID actorId = currentUserProvider.getUserId();
         Household household = getHouseholdOrThrow(householdId);
@@ -92,7 +93,7 @@ public class HouseholdServiceImpl implements HouseholdService {
         log.info("Household deleted: householdId={}, by={}", householdId, actorId);
     }
 
-    @Override
+    @Override @AuditAction(action = "TRANSFER_OWNERSHIP")
     public Household transferOwnership(UUID householdId, UUID newOwnerUserId) {
         UUID actorId = currentUserProvider.getUserId();
         Household household = getHouseholdOrThrow(householdId);
@@ -128,7 +129,7 @@ public class HouseholdServiceImpl implements HouseholdService {
                 .orElseThrow(() -> new MembershipNotFoundException(householdId, userId));
     }
 
-    @Override
+    @Override @AuditAction(action = "REMOVE_MEMBER")
     public void removeMember(UUID householdId, UUID userId) {
         UUID actorId = currentUserProvider.getUserId();
         Household household = getHouseholdOrThrow(householdId);
@@ -151,7 +152,7 @@ public class HouseholdServiceImpl implements HouseholdService {
                 householdId, userId, actorId);
     }
 
-    @Override
+    @Override @AuditAction(action = "UPDATE_PERMISSIONS")
     public Membership updatePermissions(UUID householdId, UUID userId, Set<MembershipPermission> permissions) {
         UUID actorId = currentUserProvider.getUserId();
         Household household = getHouseholdOrThrow(householdId);
@@ -172,7 +173,7 @@ public class HouseholdServiceImpl implements HouseholdService {
         return updated;
     }
 
-    @Override
+    @Override @AuditAction(action = "CREATE_INVITATION_CODE", logResult = false)
     public InvitationCode createInvitationCode(UUID householdId) {
         UUID actorId = currentUserProvider.getUserId();
         Household household = getHouseholdOrThrow(householdId);
@@ -197,7 +198,7 @@ public class HouseholdServiceImpl implements HouseholdService {
                 .orElseThrow(() -> new InvitationCodeNotFoundException(householdId));
     }
 
-    @Override
+    @Override @AuditAction(action = "REVOKE_INVITATION_CODE")
     public void revokeInvitationCode(UUID householdId) {
         UUID actorId = currentUserProvider.getUserId();
         Household household = getHouseholdOrThrow(householdId);
@@ -211,7 +212,7 @@ public class HouseholdServiceImpl implements HouseholdService {
         log.info("Invitation code revoked: householdId={}, by={}", householdId, actorId);
     }
 
-    @Override
+    @Override @AuditAction(action = "JOIN_HOUSEHOLD", logParameters = false)
     public Membership joinByInvitationCode(String code) {
         UUID userId = currentUserProvider.getUserId();
         requireUserExists(userId);

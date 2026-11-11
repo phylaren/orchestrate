@@ -1,5 +1,6 @@
 package genius.project.orchestrate.swap.internal;
 
+import genius.project.orchestrate.audit.AuditAction;
 import genius.project.orchestrate.chore.SwapType;
 import genius.project.orchestrate.chore.TurnSwapRequestedEvent;
 import genius.project.orchestrate.chore.client.ChoreClient;
@@ -93,6 +94,7 @@ public class SwapRequestServiceImpl implements SwapRequestService {
 
     @Override
     @Transactional
+    @AuditAction(action = "CREATE_SWAP_REQUEST")
     public SwapRequestResponse createSwapRequest(UUID choreId, SwapRequestRequest request) {
         UUID initiatorId = currentUserProvider.getUserId();
         UUID receiverId = request.receiverUserId();
@@ -130,6 +132,7 @@ public class SwapRequestServiceImpl implements SwapRequestService {
 
     @Override
     @Transactional
+    @AuditAction(action = "UPDATE_SWAP_REQUEST")
     public SwapRequestResponse updateSwapRequest(UUID choreId,
                                                  UUID requestId,
                                                  SwapRequestUpdateRequest request) {
@@ -158,6 +161,7 @@ public class SwapRequestServiceImpl implements SwapRequestService {
 
     @Override
     @Transactional
+    @AuditAction(action = "RESPOND_SWAP_REQUEST")
     public SwapRequestResponse respondToSwapRequest(UUID choreId,
                                                     UUID requestId,
                                                     SwapRequestStatusRequest request) {
@@ -206,6 +210,7 @@ public class SwapRequestServiceImpl implements SwapRequestService {
 
     @Override
     @Transactional
+    @AuditAction(action = "DELETE_SWAP_REQUEST")
     public void deleteSwapRequest(UUID choreId, UUID requestId) {
         UUID currentUserId = currentUserProvider.getUserId();
 

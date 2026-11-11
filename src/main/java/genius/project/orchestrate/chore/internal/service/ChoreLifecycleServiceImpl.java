@@ -1,5 +1,6 @@
 package genius.project.orchestrate.chore.internal.service;
 
+import genius.project.orchestrate.audit.AuditAction;
 import genius.project.orchestrate.chore.ChoreLifecycleService;
 import genius.project.orchestrate.chore.dto.ChoreResponse;
 import genius.project.orchestrate.chore.internal.domain.Chore;
@@ -33,6 +34,7 @@ class ChoreLifecycleServiceImpl implements ChoreLifecycleService {
 
     @Override
     @PreAuthorize("@householdAccess.hasPermission(authentication, #householdId, 'MANAGE_CHORES')")
+    @AuditAction(action = "CREATE_CHORE")
     public ChoreResponse createChore(UUID householdId, String name, String description,
                                      int recurrenceDays, boolean requiresConfirmation) {
         UUID actorId = currentUserProvider.getUserId();
@@ -59,7 +61,7 @@ class ChoreLifecycleServiceImpl implements ChoreLifecycleService {
         return ChoreResponse.from(found.chore(), found.needsAttention());
     }
 
-    @Override
+    @Override @AuditAction(action = "UPDATE_CHORE")
     public ChoreResponse updateChore(UUID choreId, String name, String description,
                                      int recurrenceDays, boolean requiresConfirmation) {
         ChoreWithParticipants found = getOrThrow(choreId);
@@ -75,7 +77,7 @@ class ChoreLifecycleServiceImpl implements ChoreLifecycleService {
         return ChoreResponse.from(saved, found.needsAttention());
     }
 
-    @Override
+    @Override @AuditAction(action = "DELETE_CHORE")
     public void deleteChore(UUID choreId) {
         if (choreStore.findById(choreId).isEmpty()) {
             throw ResourceNotFoundException.of("chore", choreId);

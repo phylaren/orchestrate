@@ -1,5 +1,6 @@
 package genius.project.orchestrate.chore.internal.service;
 
+import genius.project.orchestrate.audit.AuditAction;
 import genius.project.orchestrate.chore.ChoreParticipantService;
 import genius.project.orchestrate.chore.RotationService;
 import genius.project.orchestrate.chore.client.ChoreClient;
@@ -42,7 +43,7 @@ class ChoreParticipantServiceImpl implements ChoreParticipantService, ChoreClien
         this.currentUserProvider = currentUserProvider;
     }
 
-    @Override
+    @Override @AuditAction(action = "JOIN_CHORE")
     public ParticipantResponse joinChore(UUID choreId) {
         UUID userId = currentUserProvider.getUserId();
         ParticipantResponse response = doJoin(choreId, userId, false);
@@ -50,7 +51,7 @@ class ChoreParticipantServiceImpl implements ChoreParticipantService, ChoreClien
         return response;
     }
 
-    @Override
+    @Override @AuditAction(action = "ADD_CHORE_PARTICIPANT")
     public ParticipantResponse addParticipant(UUID choreId, UUID targetUserId) {
         UUID actorId = currentUserProvider.getUserId();
         ParticipantResponse response = doJoin(choreId, targetUserId, true);
@@ -58,7 +59,7 @@ class ChoreParticipantServiceImpl implements ChoreParticipantService, ChoreClien
         return response;
     }
 
-    @Override
+    @Override @AuditAction(action = "REMOVE_CHORE_PARTICIPANT")
     public void removeMember(UUID choreId, UUID targetUserId) {
         UUID actorId = currentUserProvider.getUserId();
         if (actorId.equals(targetUserId)) {

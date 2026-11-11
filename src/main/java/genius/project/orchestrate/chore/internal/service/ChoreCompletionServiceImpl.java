@@ -1,5 +1,6 @@
 package genius.project.orchestrate.chore.internal.service;
 
+import genius.project.orchestrate.audit.AuditAction;
 import genius.project.orchestrate.chore.ChoreCompletionService;
 import genius.project.orchestrate.chore.ConfirmationStatus;
 import genius.project.orchestrate.chore.RotationService;
@@ -41,7 +42,7 @@ class ChoreCompletionServiceImpl implements ChoreCompletionService {
         this.currentUserProvider = currentUserProvider;
     }
 
-    @Override
+    @Override @AuditAction(action = "MARK_CHORE_COMPLETED")
     public CompletionResponse markCompleted(UUID choreId) {
         UUID userId = currentUserProvider.getUserId();
         Chore chore = getChoreOrThrow(choreId);
@@ -91,7 +92,7 @@ class ChoreCompletionServiceImpl implements ChoreCompletionService {
         return CompletionResponse.from(completion);
     }
 
-    @Override
+    @Override @AuditAction(action = "DECIDE_CONFIRMATION")
     public CompletionResponse decideConfirmation(UUID choreId, UUID completionId, boolean approved) {
         UUID confirmedByUserId = currentUserProvider.getUserId();
         getChoreOrThrow(choreId);
@@ -130,7 +131,7 @@ class ChoreCompletionServiceImpl implements ChoreCompletionService {
         return CompletionResponse.from(resolved);
     }
 
-    @Override
+    @Override @AuditAction(action = "DELETE_COMPLETION")
     public void deleteCompletion(UUID choreId, UUID completionId) {
         getChoreOrThrow(choreId);
 
