@@ -28,6 +28,7 @@
 - [Спільний стартер сповіщень і профілі dev/prod](#спільний-стартер-сповіщень-і-профілі-devprod)
 - [Облікові записи та паролі](#облікові-записи-та-паролі)
 - [Розгортання: Docker Compose](#розгортання-docker-compose)
+- [Аудит бізнес-операцій](#аудит-бізнес-операцій)
 
 Схема бази даних і правила роботи з БД — окремий документ: [`README-db.md`](README-db.md).
 
@@ -1019,3 +1020,29 @@ docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -
 ```bash
 docker compose exec app tail -n 50 logs/app.log
 ```
+
+## Аудит бізнес-операцій
+
+Бізнес-методи, позначені `@AuditAction`, фіксуються в таблиці `audit_log` (міграція `V4`) аспектом
+`audit/internal/AuditLoggingAspect` (`@Around`).
+
+| Поле | Значення |
+|---|---|
+| `user_id` | поточний користувач із `CurrentUserProvider`; `NULL`, якщо автентифікації немає (без FK: запис переживає видалення користувача) |
+| `action`, `method_name` | назва операції з анотації та `Клас.метод` |
+| `arguments`, `result` | `toString()` аргументів і результату, до 4000 символів |
+| `success`, `error_type`, `error_message` | факт винятку, його клас і текст (до 2000 символів) |
+| `occurred_at`, `duration_ms` | точний час початку операції та тривалість |
+
+**Правила.**
+- Виняток бізнес-методу не поглинається: аспект записує його й кидає далі (HTTP-відповіді не змінюються).
+- Запис робиться в `REQUIRES_NEW` (`AuditLogWriter`), тому відкат бізнес-транзакції запис не видаляє.
+- Збій самого запису аудиту лише логується й не ламає бізнес-операцію.
+- `logParameters = false` вимикає збереження аргументів і тексту винятку, `logResult = false` — результату.
+  Так позначено операції з кодом запрошення (`JOIN_HOUSEHOLD`, `CREATE_INVITATION_CODE`).
+- Аспект зовнішній щодо Method Security (`@Order(HIGHEST_PRECEDENCE + 100)`), тому відмови `@PreAuthorize` теж потрапляють у журнал.
+- Анотацію ставлять на методи реалізацій сервісів (Spring AOP перехоплює лише виклики через проксі, не `this`).
+  Модуль `user` не анотований, бо `audit` залежить від `identity`, а той — від `user` (цикл заборонив би Modulith).
+
+**Тести:** `AuditLoggingAspectTest` (аспект на `AspectJProxyFactory`), `AuditLogIntegrationTest`
+(PostgreSQL у Testcontainers: успіх, бізнес-помилка, відсутність секретів у журналі).
