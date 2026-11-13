@@ -1,7 +1,7 @@
 package genius.project.orchestrate.identity.web;
 
-import genius.project.orchestrate.identity.UserRole;
 import genius.project.orchestrate.identity.UserRoles;
+import genius.project.orchestrate.user.UserRole;
 import genius.project.orchestrate.user.UserSummaries;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
@@ -13,7 +13,7 @@ import java.util.List;
 
 @Controller
 @RequestMapping("/admin/users")
-@PreAuthorize("@roleAccess.hasRole(authentication, 'ADMIN')")
+@PreAuthorize("hasRole('ADMIN')")
 class UserAdminWebController {
 
     static final String LIST_VIEW = "admin/users";

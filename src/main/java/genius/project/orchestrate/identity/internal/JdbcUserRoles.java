@@ -1,6 +1,6 @@
 package genius.project.orchestrate.identity.internal;
 
-import genius.project.orchestrate.identity.UserRole;
+import genius.project.orchestrate.user.UserRole;
 import genius.project.orchestrate.identity.UserRoles;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;

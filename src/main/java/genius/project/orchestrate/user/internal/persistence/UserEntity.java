@@ -1,7 +1,10 @@
 package genius.project.orchestrate.user.internal.persistence;
 
+import genius.project.orchestrate.user.UserRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -30,6 +33,10 @@ public class UserEntity {
     @Column(nullable = false)
     private boolean enabled = true;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private UserRole role = UserRole.USER;
+
     protected UserEntity() {}
 
     public UserEntity(UUID id, String displayName, String email, Instant createdAt) {
@@ -45,6 +52,12 @@ public class UserEntity {
         this.passwordHash = passwordHash;
     }
 
+    public UserEntity(UUID id, String displayName, String email, Instant createdAt,
+                      String passwordHash, UserRole role) {
+        this(id, displayName, email, createdAt, passwordHash);
+        this.role = role != null ? role : UserRole.USER;
+    }
+
     public UUID getId() { return id; }
     public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
@@ -53,6 +66,8 @@ public class UserEntity {
     public Instant getCreatedAt() { return createdAt; }
     public String getPasswordHash() { return passwordHash; }
     public boolean isEnabled() { return enabled; }
+    public UserRole getRole() { return role; }
+    public void setRole(UserRole role) { this.role = role; }
 
     @Override
     public boolean equals(Object o) {

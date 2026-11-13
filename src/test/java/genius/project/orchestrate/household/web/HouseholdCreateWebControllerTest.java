@@ -5,7 +5,6 @@ import genius.project.orchestrate.common.web.WebViewConfiguration;
 import genius.project.orchestrate.household.HouseholdService;
 import genius.project.orchestrate.household.internal.domain.Household;
 import genius.project.orchestrate.identity.JwtValidatorService;
-import genius.project.orchestrate.identity.RoleAccess;
 import genius.project.orchestrate.identity.UserRoles;
 import genius.project.orchestrate.identity.WithUserPrincipal;
 import genius.project.orchestrate.identity.internal.SecurityWebMvcTestConfiguration;
@@ -42,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 @WebMvcTest(HouseholdCreateWebController.class)
-@Import({SecurityWebMvcTestConfiguration.class, WebViewConfiguration.class, WebErrorAdvice.class, RoleAccess.class})
+@Import({SecurityWebMvcTestConfiguration.class, WebViewConfiguration.class, WebErrorAdvice.class})
 class HouseholdCreateWebControllerTest {
 
     private static final UUID OWNER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");

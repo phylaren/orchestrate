@@ -1,5 +1,7 @@
 package genius.project.orchestrate.identity;
 
+import genius.project.orchestrate.user.UserPrincipal;
+import genius.project.orchestrate.user.UserRole;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.userdetails.User;
@@ -7,6 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -88,5 +91,17 @@ class JwtServiceTest {
                 .password("irrelevant")
                 .authorities("ROLE_USER")
                 .build();
+    }
+
+    @Test
+    void generateToken_encodesAdminRole() {
+        UserDetails admin = new UserPrincipal(
+                UUID.randomUUID(), "admin@example.com", "Admin", "irrelevant", true, UserRole.ADMIN);
+
+        String token = jwtService.generateToken(admin);
+
+        Claims claims = jwtValidatorService.extractAllClaims(token);
+        assertThat(claims.get("roles", List.class))
+                .containsExactlyInAnyOrder("ROLE_USER", "ROLE_ADMIN");
     }
 }

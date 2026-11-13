@@ -12,8 +12,8 @@
     <a class="brand" th:href="@{/households}">Orchestrate</a>
     <nav sec:authorize="isAuthenticated()" class="site-nav">
         <a th:href="@{/households}">Домогосподарства</a>
-        <a sec:authorize="@roleAccess.hasRole(authentication, 'ADMIN')" th:href="@{/admin/users}">Користувачі</a>
-        <span sec:authorize="@roleAccess.hasRole(authentication, 'ADMIN')" class="badge badge-ok">Адміністратор</span>
+        <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin/users}">Користувачі</a>
+        <span sec:authorize="hasRole('ADMIN')" class="badge badge-ok">Адміністратор</span>
         <span class="site-user" sec:authentication="name">користувач</span>
         <form th:action="@{/logout}" method="post" class="inline-form">
             <button type="submit" class="btn">Вийти</button>

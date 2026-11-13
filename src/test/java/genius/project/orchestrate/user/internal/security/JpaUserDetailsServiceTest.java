@@ -1,6 +1,7 @@
 package genius.project.orchestrate.user.internal.security;
 
 import genius.project.orchestrate.user.UserPrincipal;
+import genius.project.orchestrate.user.UserRole;
 import genius.project.orchestrate.user.internal.UserRepository;
 import genius.project.orchestrate.user.internal.domain.UserCredentials;
 import org.junit.jupiter.api.DisplayName;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
@@ -87,5 +89,21 @@ class JpaUserDetailsServiceTest {
 
         assertThat(service.loadUserByUsername("nopass@example.com").isEnabled()).isFalse();
         assertThat(service.loadUserByUsername("blocked@example.com").isEnabled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("ADMIN у БД перетворюється на principal з ROLE_ADMIN")
+    void adminCredentialsMapToAdminPrincipal() {
+        when(userRepository.findCredentialsByEmail("admin@example.com"))
+                .thenReturn(Optional.of(new UserCredentials(
+                        ID, "admin@example.com", "Admin", "$argon2id$hash", true, UserRole.ADMIN)));
+
+        UserDetails details = service.loadUserByUsername("admin@example.com");
+
+        assertThat(details).isInstanceOf(UserPrincipal.class);
+        assertThat(((UserPrincipal) details).getRole()).isEqualTo(UserRole.ADMIN);
+        assertThat(details.getAuthorities())
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactlyInAnyOrder("ROLE_USER", "ROLE_ADMIN");
     }
 }

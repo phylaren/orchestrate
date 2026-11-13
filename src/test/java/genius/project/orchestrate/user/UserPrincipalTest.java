@@ -57,4 +57,28 @@ class UserPrincipalTest {
         assertThat(principal("a", true)).isEqualTo(principal("b", false));
         assertThat(principal("$argon2id$secret", true).toString()).doesNotContain("secret");
     }
+
+    @Test
+    @DisplayName("роль ADMIN дає обидві authority: ROLE_USER і ROLE_ADMIN")
+    void adminHasBothRoles() {
+        UserPrincipal principal = new UserPrincipal(
+                ID, "anna@example.com", "Анна", "$argon2id$hash", true, UserRole.ADMIN);
+
+        assertThat(principal.getAuthorities())
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactlyInAnyOrder("ROLE_USER", "ROLE_ADMIN");
+        assertThat(principal.getRole()).isEqualTo(UserRole.ADMIN);
+    }
+
+    @Test
+    @DisplayName("null роль трактується як USER")
+    void nullRoleDefaultsToUser() {
+        UserPrincipal principal = new UserPrincipal(
+                ID, "anna@example.com", "Анна", "$argon2id$hash", true, null);
+
+        assertThat(principal.getRole()).isEqualTo(UserRole.USER);
+        assertThat(principal.getAuthorities())
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactly("ROLE_USER");
+    }
 }
