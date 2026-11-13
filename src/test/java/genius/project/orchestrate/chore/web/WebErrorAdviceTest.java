@@ -7,7 +7,6 @@ import genius.project.orchestrate.common.exception.ForbiddenException;
 import genius.project.orchestrate.common.exception.ValidationException;
 import genius.project.orchestrate.household.exception.HouseholdNotFoundException;
 import genius.project.orchestrate.identity.JwtValidatorService;
-import genius.project.orchestrate.identity.RoleAccess;
 import genius.project.orchestrate.identity.UserRoles;
 import genius.project.orchestrate.identity.WithUserPrincipal;
 import genius.project.orchestrate.identity.internal.SecurityWebMvcTestConfiguration;
@@ -35,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 @WebMvcTest(ChoreWebController.class)
-@Import({SecurityWebMvcTestConfiguration.class, WebViewConfiguration.class, WebErrorAdvice.class, RoleAccess.class})
+@Import({SecurityWebMvcTestConfiguration.class, WebViewConfiguration.class, WebErrorAdvice.class})
 class WebErrorAdviceTest {
 
     private static final UUID HOUSEHOLD_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");

@@ -1,13 +1,12 @@
 package genius.project.orchestrate.identity.web;
 
+import genius.project.orchestrate.common.web.WebErrorAdvice;
+import genius.project.orchestrate.common.web.WebViewConfiguration;
 import genius.project.orchestrate.identity.JwtValidatorService;
-import genius.project.orchestrate.identity.RoleAccess;
-import genius.project.orchestrate.user.UserRole;
 import genius.project.orchestrate.identity.UserRoles;
 import genius.project.orchestrate.identity.WithUserPrincipal;
 import genius.project.orchestrate.identity.internal.SecurityWebMvcTestConfiguration;
-import genius.project.orchestrate.common.web.WebErrorAdvice;
-import genius.project.orchestrate.common.web.WebViewConfiguration;
+import genius.project.orchestrate.user.UserRole;
 import genius.project.orchestrate.user.UserSummaries;
 import genius.project.orchestrate.user.UserSummary;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 @WebMvcTest(UserAdminWebController.class)
-@Import({SecurityWebMvcTestConfiguration.class, WebViewConfiguration.class, WebErrorAdvice.class, RoleAccess.class})
+@Import({SecurityWebMvcTestConfiguration.class, WebViewConfiguration.class, WebErrorAdvice.class})
 class UserAdminWebControllerTest {
 
     private static final UUID ADMIN_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
@@ -72,7 +71,7 @@ class UserAdminWebControllerTest {
     }
 
     @Test
-    @WithUserPrincipal(id = "00000000-0000-0000-0000-000000000001")
+    @WithUserPrincipal(id = "00000000-0000-0000-0000-000000000001", role = "ADMIN")
     @DisplayName("Адміністратор бачить список користувачів з ролями")
     void list_Admin_ShowsUsersAndRoles() throws Exception {
         mockMvc.perform(get("/admin/users"))

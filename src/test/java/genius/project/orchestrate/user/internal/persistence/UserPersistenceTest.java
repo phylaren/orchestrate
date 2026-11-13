@@ -1,5 +1,6 @@
 package genius.project.orchestrate.user.internal.persistence;
 
+import genius.project.orchestrate.user.UserRole;
 import genius.project.orchestrate.user.UserService;
 import genius.project.orchestrate.user.exception.EmailAlreadyTakenException;
 import genius.project.orchestrate.user.internal.domain.User;
@@ -156,5 +157,27 @@ class UserPersistenceTest {
     @DisplayName("findCredentialsByEmail для невідомого email повертає порожній Optional")
     void credentialsForUnknownEmail() {
         assertThat(adapter.findCredentialsByEmail("ghost@example.com")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("role зберігається в БД і читається назад, дефолт USER")
+    void roleIsPersistedAndReadBack() {
+        UUID adminId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        adapter.register(new User(adminId, "Admin", "admin@example.com", T1), "$argon2id$h");
+        adapter.register(new User(userId, "User", "user@example.com", T1), "$argon2id$h");
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(adapter.findCredentialsByEmail("user@example.com").orElseThrow().role())
+                .isEqualTo(UserRole.USER);
+
+        entityManager.createNativeQuery("UPDATE users SET role = 'ADMIN' WHERE id = :id")
+                .setParameter("id", adminId).executeUpdate();
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(adapter.findCredentialsByEmail("admin@example.com").orElseThrow().role())
+                .isEqualTo(UserRole.ADMIN);
     }
 }

@@ -1,6 +1,7 @@
 package genius.project.orchestrate.identity;
 
 import genius.project.orchestrate.user.UserPrincipal;
+import genius.project.orchestrate.user.UserRole;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -27,6 +28,8 @@ public @interface WithUserPrincipal {
 
     String displayName() default "Test User";
 
+    String role() default "USER";
+
     /**
      * Household permissions for the token. Format: "householdId:PERM1,PERM2".
      */
@@ -36,8 +39,9 @@ public @interface WithUserPrincipal {
 
         @Override
         public SecurityContext createSecurityContext(WithUserPrincipal annotation) {
+            UserRole role = UserRole.valueOf(annotation.role());
             UserPrincipal principal = new UserPrincipal(UUID.fromString(annotation.id()),
-                    annotation.email(), annotation.displayName(), "{argon2}hash", true);
+                    annotation.email(), annotation.displayName(), "{argon2}hash", true, role);
 
             SecurityContext context = SecurityContextHolder.createEmptyContext();
             if (annotation.households().length > 0) {
