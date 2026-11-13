@@ -1,6 +1,6 @@
 package genius.project.orchestrate.identity.web;
 
-import genius.project.orchestrate.identity.UserRole;
+import genius.project.orchestrate.user.UserRole;
 import genius.project.orchestrate.identity.UserRoles;
 import genius.project.orchestrate.user.UserSummaries;
 import org.springframework.security.access.prepost.PreAuthorize;

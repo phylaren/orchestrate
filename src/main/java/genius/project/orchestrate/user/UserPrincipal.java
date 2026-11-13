@@ -13,6 +13,7 @@ import java.util.UUID;
 public final class UserPrincipal implements UserDetails {
 
     public static final String ROLE_USER = "ROLE_USER";
+    public static final String ROLE_ADMIN = "ROLE_ADMIN";
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -22,13 +23,20 @@ public final class UserPrincipal implements UserDetails {
     private final String displayName;
     private final String passwordHash;
     private final boolean enabled;
+    private final UserRole role;
 
     public UserPrincipal(UUID id, String email, String displayName, String passwordHash, boolean enabled) {
+        this(id, email, displayName, passwordHash, enabled, UserRole.USER);
+    }
+
+    public UserPrincipal(UUID id, String email, String displayName, String passwordHash,
+                         boolean enabled, UserRole role) {
         this.id = Objects.requireNonNull(id, "id");
         this.email = Objects.requireNonNull(email, "email");
         this.displayName = displayName;
         this.passwordHash = passwordHash;
         this.enabled = enabled;
+        this.role = role != null ? role : UserRole.USER;
     }
 
     public UUID getId() {
@@ -39,8 +47,17 @@ public final class UserPrincipal implements UserDetails {
         return displayName;
     }
 
+    public UserRole getRole() {
+        return role;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
+        if (role == UserRole.ADMIN) {
+            return List.of(
+                    new SimpleGrantedAuthority(ROLE_USER),
+                    new SimpleGrantedAuthority(ROLE_ADMIN));
+        }
         return List.of(new SimpleGrantedAuthority(ROLE_USER));
     }
 

@@ -2,7 +2,7 @@ package genius.project.orchestrate.identity.web;
 
 import genius.project.orchestrate.identity.JwtValidatorService;
 import genius.project.orchestrate.identity.RoleAccess;
-import genius.project.orchestrate.identity.UserRole;
+import genius.project.orchestrate.user.UserRole;
 import genius.project.orchestrate.identity.UserRoles;
 import genius.project.orchestrate.identity.WithUserPrincipal;
 import genius.project.orchestrate.identity.internal.SecurityWebMvcTestConfiguration;

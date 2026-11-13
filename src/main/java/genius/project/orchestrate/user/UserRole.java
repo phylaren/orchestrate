@@ -1,4 +1,4 @@
-package genius.project.orchestrate.identity;
+package genius.project.orchestrate.user;
 
 public enum UserRole {
     USER,

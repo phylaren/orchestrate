@@ -32,6 +32,7 @@ class JpaUserDetailsService implements UserDetailsService {
                 credentials.email(),
                 credentials.displayName(),
                 credentials.passwordHash(),
-                credentials.enabled());
+                credentials.enabled(),
+                credentials.role());
     }
 }

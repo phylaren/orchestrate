@@ -50,7 +50,8 @@ public class JpaUserRepository implements UserRepository {
                 entity.getEmail(),
                 entity.getDisplayName(),
                 entity.getPasswordHash(),
-                entity.isEnabled()));
+                entity.isEnabled(),
+                entity.getRole()));
     }
 
     @Override

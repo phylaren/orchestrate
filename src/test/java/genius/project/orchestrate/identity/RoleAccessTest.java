@@ -1,6 +1,7 @@
 package genius.project.orchestrate.identity;
 
 import genius.project.orchestrate.user.UserPrincipal;
+import genius.project.orchestrate.user.UserRole;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
