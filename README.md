@@ -1046,3 +1046,39 @@ docker compose exec app tail -n 50 logs/app.log
 
 **Тести:** `AuditLoggingAspectTest` (аспект на `AspectJProxyFactory`), `AuditLogIntegrationTest`
 (PostgreSQL у Testcontainers: успіх, бізнес-помилка, відсутність секретів у журналі).
+
+## Actuator: адміністратор і зміна рівня логування
+
+Ланцюг `identity/internal/ActuatorSecurityConfiguration` обробляє весь `/actuator/**` (HTTP Basic, без сесій):
+`health` і `info` відкриті, решта лише для `ROLE_ADMIN`. Неекспонований ендпоінт (`env`, `beans`, `heapdump`)
+повертає адміністратору 404, анонімному клієнту 401, а не редирект на `/login`.
+
+**Адміністратор.** `user/internal/security/AdminAccountInitializer` під час старту створює користувача з роллю
+`ADMIN` або підвищує наявного й приводить пароль до заданого. Роль потрапляє в Spring Security через
+`JpaUserDetailsService`, тому той самий обліковий запис працює і для Actuator (HTTP Basic), і для бізнес-API (JWT).
+
+| Змінна | Призначення |
+|---|---|
+| `ORCHESTRATE_ADMIN_EMAIL` | логін адміністратора; порожні обидві змінні — адміністратор не створюється |
+| `ORCHESTRATE_ADMIN_PASSWORD` | пароль, мінімум 12 символів; задано лише одну змінну або короткий пароль — застосунок не стартує |
+
+У профілі `dev` за замовчуванням `admin@orchestrate.test` / `admin-password-123`.
+
+**Зміна рівня логування без перезапуску.** Пакет `genius.project.orchestrate.audit` базово має рівень `INFO`
+(`application.properties`). На `DEBUG` аспект аудиту пише `Audited operation started/finished` для кожної
+бізнес-операції з `@AuditAction`.
+
+```bash
+curl -u admin@orchestrate.test:admin-password-123 http://localhost:8080/actuator/loggers/genius.project.orchestrate.audit
+curl -X POST -u admin@orchestrate.test:admin-password-123 -H 'Content-Type: application/json' \
+  -d '{"configuredLevel": "DEBUG"}' http://localhost:8080/actuator/loggers/genius.project.orchestrate.audit
+curl -X POST -u admin@orchestrate.test:admin-password-123 -H 'Content-Type: application/json' \
+  -d '{"configuredLevel": null}' http://localhost:8080/actuator/loggers/genius.project.orchestrate.audit
+```
+
+Повний сценарій (401 без пароля → INFO → бізнес-операція → DEBUG → та сама операція → скидання):
+`scripts/loggers-scenario.sh`. Зміна діє до перезапуску застосунку.
+
+**Тести:** `identity/internal/ActuatorSecurityIntegrationTest` (401/403/200/404, деталі `health` лише для ADMIN,
+бізнес-API без JWT), `identity/internal/LoggersEndpointIntegrationTest` (INFO → DEBUG → скидання, DEBUG-рядки в
+консолі лише після зміни, 401 без пароля, 400 на невідомий рівень), `user/internal/security/AdminAccountInitializerTest`.
