@@ -17,14 +17,18 @@ class ActuatorSecurityConfiguration {
     @Order(0)
     SecurityFilterChain actuatorSecurityFilterChain(HttpSecurity http) throws Exception {
         return http
-                .securityMatcher(EndpointRequest.toAnyEndpoint())
+                // Увесь /actuator/**, а не лише експоновані ендпоінти: інакше запит до неекспонованого
+                // (env, beans, heapdump) потрапляє у вебланцюг і отримує редирект на /login замість 404.
+                .securityMatchers(matchers -> matchers
+                        .requestMatchers(EndpointRequest.toAnyEndpoint())
+                        .requestMatchers("/actuator/**"))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .httpBasic(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(EndpointRequest.to("health", "info")).permitAll()
-                        .requestMatchers(EndpointRequest.toAnyEndpoint()).hasRole("ADMIN"))
+                        .anyRequest().hasRole("ADMIN"))
                 .build();
     }
 }

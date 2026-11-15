@@ -37,6 +37,10 @@ public class AuditLoggingAspect {
         Instant occurredAt = Instant.now();
         long startNanos = System.nanoTime();
         UUID userId = resolveUserId();
+        if (log.isDebugEnabled()) {
+            log.debug("Audited operation started: action={}, method={}, userId={}",
+                    auditAction.action(), joinPoint.getSignature().toShortString(), userId);
+        }
         Object result = null;
         Throwable failure = null;
         try {
@@ -74,6 +78,8 @@ public class AuditLoggingAspect {
                     durationMs);
 
             auditLogService.record(record);
+            log.debug("Audited operation finished: action={}, method={}, success={}, durationMs={}",
+                    record.action(), record.methodName(), record.success(), record.durationMs());
         } catch (RuntimeException ex) {
             log.error("Could not store audit record for action={}", auditAction.action(), ex);
         }

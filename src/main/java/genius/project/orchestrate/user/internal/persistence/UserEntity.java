@@ -65,6 +65,7 @@ public class UserEntity {
     public void setEmail(String email) { this.email = email; }
     public Instant getCreatedAt() { return createdAt; }
     public String getPasswordHash() { return passwordHash; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public boolean isEnabled() { return enabled; }
     public UserRole getRole() { return role; }
     public void setRole(UserRole role) { this.role = role; }
